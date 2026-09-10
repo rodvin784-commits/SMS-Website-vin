@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
-import { Plus, Pencil, Trash2, GraduationCap, Search, X, CheckCircle2, AlertCircle, Filter } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { Plus, Pencil, Trash2, GraduationCap, Search, CheckCircle2, Filter } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -32,41 +32,40 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
   const [submitting, setSubmitting] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  // Fetch data
-  const fetchData = useCallback(async () => {
-    try {
-      let url = '/api/admin/jurusan'
-      const params = new URLSearchParams()
-      if (statusFilter !== 'all') params.set('status', statusFilter)
-      if (params.toString()) url += `?${params.toString()}`
-
-      const res = await fetch(url)
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.error || 'Gagal memuat data')
-      }
-      const result = await res.json()
-      setData(Array.isArray(result) ? result : [])
-    } catch (err) {
-      console.error('Error fetching jurusan:', err)
-      setFeedback({ type: 'error', message: 'Gagal memuat data jurusan' })
-    } finally {
-      setLoading(false)
-    }
-  }, [statusFilter])
-
-  // Load data on mount
-  useEffect(() => {
-    setLoading(true)
-    fetchData()
-  }, [fetchData])
-
-  // Refresh data
-  const refreshData = useCallback(async () => {
-    setLoading(true)
-    await fetchData()
+  // Refresh trigger: naikkan angka untuk memuat ulang data (dipakai setelah mutasi)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const refreshData = useCallback(() => {
+    setRefreshKey((k) => k + 1)
     if (onDataChanged) onDataChanged()
-  }, [fetchData, onDataChanged])
+  }, [onDataChanged])
+
+  // Load data on mount, saat filter berubah, atau saat refresh diminta
+  useEffect(() => {
+    let cancelled = false
+
+    const query = statusFilter !== 'all' ? `?status=${statusFilter}` : ''
+
+    fetch(`/api/admin/jurusan${query}`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null)
+          throw new Error(errorData?.error || 'Gagal memuat data')
+        }
+        return res.json()
+      })
+      .then((result) => {
+        if (!cancelled) setData(Array.isArray(result) ? result : [])
+      })
+      .catch((err) => {
+        console.error('Error fetching jurusan:', err)
+        if (!cancelled) setFeedback({ type: 'error', message: 'Gagal memuat data jurusan' })
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [statusFilter, refreshKey])
 
   // Filter data
   const filteredData = data
@@ -278,7 +277,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
             </div>
             <h3 className="text-lg font-bold text-gray-900 mb-1">Belum ada data</h3>
             <p className="text-sm text-gray-500 max-w-md mx-auto">
-              Belum ada jurusan yang didaftarkan. Klik "Tambah Jurusan" untuk menambahkan.
+              Belum ada jurusan yang didaftarkan. Klik &ldquo;Tambah Jurusan&rdquo; untuk menambahkan.
             </p>
           </div>
         </div>

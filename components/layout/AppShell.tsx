@@ -6,7 +6,6 @@ import Link from 'next/link'
 import {
   Menu,
   X,
-  LayoutDashboard,
   LogOut,
   ShieldCheck,
   GraduationCap as GraduationCapIcon,

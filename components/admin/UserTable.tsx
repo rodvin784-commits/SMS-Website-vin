@@ -3,14 +3,10 @@
 import {
   Pencil,
   Trash2,
-  BookOpen,
-  AlertCircle,
-  CheckCircle2,
   RefreshCw,
   Users,
 } from 'lucide-react'
-import type { MouseEventHandler } from 'react'
-import { Badge, RoleBadge } from '@/components/ui/Badge'
+import { RoleBadge } from '@/components/ui/Badge'
 
 export type Profile = {
   id: string
@@ -26,7 +22,6 @@ interface UserTableProps {
   loading: boolean
   onEdit: (user: Profile) => void
   onDelete: (id: string) => void
-  onOpenMengajar?: (user: Profile) => void
   emptyMessage?: string
   showCount?: boolean
 }
@@ -36,7 +31,6 @@ export function UserTable({
   loading,
   onEdit,
   onDelete,
-  onOpenMengajar,
   emptyMessage,
   showCount = false,
 }: UserTableProps) {
@@ -50,33 +44,6 @@ export function UserTable({
             <RefreshCw className="h-8 w-8 text-blue-600 animate-spin" />
           </div>
           <p className="text-gray-500 font-medium">Memuat data pengguna...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (users.length === 0) {
-    return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-xs font-bold text-gray-700 uppercase tracking-wider">
-                <th className="py-4 px-6">Pengguna</th>
-                <th className="py-4 px-6">Role</th>
-                <th className="py-4 px-6">Status</th>
-                <th className="py-4 px-6">Tanggal Dibuat</th>
-                <th className="py-4 px-6 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td colSpan={5} className="py-12 text-center text-gray-500 font-medium">
-                  Memuat data pengguna...
-                </td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
     )
@@ -191,15 +158,6 @@ export function UserTable({
                 </td>
                 <td className="py-4 px-6">
                   <div className="flex items-center justify-end gap-1">
-                    {user.role === 'guru' && onOpenMengajar && (
-                      <button
-                        onClick={() => onOpenMengajar(user)}
-                        className="p-2 text-purple-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
-                        title="Atur Mapel & Kelas"
-                      >
-                        <BookOpen className="h-4 w-4" />
-                      </button>
-                    )}
                     <button
                       onClick={() => onEdit(user)}
                       className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
@@ -232,6 +190,8 @@ interface ActionButtonProps {
   color: 'blue' | 'purple' | 'red'
 }
 
+// Saat ini tidak dipakai; disimpan untuk aksi tambahan per baris di masa depan
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ActionButton({ onClick, icon, label, color }: ActionButtonProps) {
   const colorStyles = {
     blue: {

@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, type InputHTMLAttributes } from 'react'
+import { forwardRef, useState, type InputHTMLAttributes } from 'react'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 interface IconInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
@@ -12,7 +12,7 @@ interface IconInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'ty
 }
 
 export const IconInput = forwardRef<HTMLInputElement, IconInputProps>(
-  ({ type, label, error, showTogglePassword, onTogglePassword, className = '', ...props }, ref) => {
+  ({ type, label, error, showTogglePassword, onTogglePassword, ...props }, ref) => {
     const [showPassword, setShowPassword] = useState(type === 'password' ? false : undefined)
 
     const inputType = type === 'password' && showPassword ? 'text' : type
@@ -61,5 +61,3 @@ export const IconInput = forwardRef<HTMLInputElement, IconInputProps>(
 )
 
 IconInput.displayName = 'IconInput'
-
-import { useState } from 'react'

@@ -9,6 +9,23 @@ function denyResponse() {
   )
 }
 
+// Embed to-one PostgREST bisa berupa object atau array tergantung deteksi relasi
+type JurusanEmbed =
+  | { id: string; kode: string; nama_jurusan: string }[]
+  | { id: string; kode: string; nama_jurusan: string }
+  | null
+
+type KelasWithJurusan = {
+  id: string
+  nama_kelas: string
+  tingkat: number
+  tahun_ajaran: string
+  jurusan_id: string | null
+  jurusan: JurusanEmbed
+  status: boolean
+  created_at: string
+}
+
 // GET /api/admin/kelas - List semua kelas
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +48,7 @@ export async function GET(request: NextRequest) {
         tingkat,
         tahun_ajaran,
         jurusan_id,
-        jurusan:kurusan(id, kode, nama_jurusan),
+        jurusan:jurusan(id, kode, nama_jurusan),
         status,
         created_at
       `)
@@ -61,21 +78,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    // Format data dengan jurusan nested
-    const formattedData = (data ?? []).map((k: any) => ({
-      id: k.id,
-      nama_kelas: k.nama_kelas,
-      tingkat: k.tingkat,
-      tahun_ajaran: k.tahun_ajaran,
-      jurusan_id: k.jurusan_id,
-      jurusan: k.jurusan ? {
-        id: k.jurusan.id,
-        kode: k.jurusan.kode,
-        nama_jurusan: k.jurusan.nama_jurusan,
-      } : null,
-      status: k.status,
-      created_at: k.created_at,
-    }))
+    // Format data dengan jurusan nested (embed to-one PostgREST bisa object atau array)
+    const formattedData = ((data ?? []) as KelasWithJurusan[]).map((k) => {
+      const jurusan = Array.isArray(k.jurusan) ? (k.jurusan[0] ?? null) : k.jurusan
+      return {
+        id: k.id,
+        nama_kelas: k.nama_kelas,
+        tingkat: k.tingkat,
+        tahun_ajaran: k.tahun_ajaran,
+        jurusan_id: k.jurusan_id,
+        jurusan: jurusan
+          ? {
+              id: jurusan.id,
+              kode: jurusan.kode,
+              nama_jurusan: jurusan.nama_jurusan,
+            }
+          : null,
+        status: k.status,
+        created_at: k.created_at,
+      }
+    })
 
     return NextResponse.json(formattedData, { status: 200 })
   } catch (err) {

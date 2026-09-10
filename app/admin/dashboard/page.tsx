@@ -8,24 +8,45 @@ import { Users, GraduationCap, BookOpen, Calendar } from 'lucide-react'
 export default function AdminDashboardPage() {
   const [totalGuru, setTotalGuru] = useState<number | string>('--')
   const [totalSiswa, setTotalSiswa] = useState<number | string>('--')
+  const [totalMapel, setTotalMapel] = useState<number | string>('--')
+  const [totalKelas, setTotalKelas] = useState<number | string>('--')
 
   useEffect(() => {
+    let cancelled = false
+
     async function fetchStats() {
-      const { count: guruCount } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'guru')
+      const [guruRes, siswaRes, mapelRes, kelasRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'guru'),
+        supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'siswa'),
+        supabase
+          .from('mata_pelajaran')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', true),
+        supabase
+          .from('kelas')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', true),
+      ])
 
-      const { count: siswaCount } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'siswa')
-
-      if (guruCount !== null) setTotalGuru(guruCount)
-      if (siswaCount !== null) setTotalSiswa(siswaCount)
+      if (!cancelled) {
+        if (guruRes.count !== null) setTotalGuru(guruRes.count)
+        if (siswaRes.count !== null) setTotalSiswa(siswaRes.count)
+        if (mapelRes.count !== null) setTotalMapel(mapelRes.count)
+        if (kelasRes.count !== null) setTotalKelas(kelasRes.count)
+      }
     }
 
     fetchStats()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return (
@@ -57,14 +78,14 @@ export default function AdminDashboardPage() {
         <StatCard
           icon={BookOpen}
           label="Mata Pelajaran"
-          value="--"
+          value={totalMapel}
           variant="purple"
           delay={200}
         />
         <StatCard
           icon={Calendar}
           label="Total Kelas"
-          value="--"
+          value={totalKelas}
           variant="amber"
           delay={300}
         />

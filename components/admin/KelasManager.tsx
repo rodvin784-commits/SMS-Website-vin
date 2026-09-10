@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Plus, Pencil, Trash2, GraduationCap, Filter, Search, X, CheckCircle2, AlertCircle, Building2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, GraduationCap, Filter, Search, CheckCircle2, Building2 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -57,66 +57,67 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
     return Array.from({ length: 5 }, (_, i: number) => `${currentYear + i}/${currentYear + i + 1}`)
   }, [])
 
-  // Fetch data
-  const fetchData = useCallback(async () => {
-    try {
-      let url = '/api/admin/kelas'
-      const params = new URLSearchParams()
-      if (statusFilter !== 'all') params.set('status', statusFilter)
-      if (tingkatFilter !== 'all') params.set('tingkat', tingkatFilter)
-      if (params.toString()) url += `?${params.toString()}`
-
-      const res = await fetch(url)
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.error || 'Gagal memuat data')
-      }
-      const result = await res.json()
-      setData(Array.isArray(result) ? result : [])
-    } catch (err) {
-      console.error('Error fetching kelas:', err)
-      setFeedback({ type: 'error', message: 'Gagal memuat data kelas' })
-    } finally {
-      setLoading(false)
-    }
-  }, [statusFilter, tingkatFilter])
-
-  // Load data on mount
-  useEffect(() => {
-    setLoading(true)
-    fetchData()
-  }, [fetchData])
-
-  // Refresh data
-  const refreshData = useCallback(async () => {
-    setLoading(true)
-    await fetchData()
+  // Refresh trigger: naikkan angka untuk memuat ulang data (dipakai setelah mutasi)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const refreshData = useCallback(() => {
+    setRefreshKey((k) => k + 1)
     if (onDataChanged) onDataChanged()
-  }, [fetchData, onDataChanged])
+  }, [onDataChanged])
 
-  // Fetch jurusan options
+  // Load data on mount, saat filter berubah, atau saat refresh diminta
+  useEffect(() => {
+    let cancelled = false
+
+    const params = new URLSearchParams()
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    if (tingkatFilter !== 'all') params.set('tingkat', tingkatFilter)
+    const query = params.toString()
+
+    fetch(`/api/admin/kelas${query ? `?${query}` : ''}`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null)
+          throw new Error(errorData?.error || 'Gagal memuat data')
+        }
+        return res.json()
+      })
+      .then((result) => {
+        if (!cancelled) setData(Array.isArray(result) ? result : [])
+      })
+      .catch((err) => {
+        console.error('Error fetching kelas:', err)
+        if (!cancelled) setFeedback({ type: 'error', message: 'Gagal memuat data kelas' })
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [statusFilter, tingkatFilter, refreshKey])
+
+  // Jurusan options (sekali saat mount; fetchingJurusan awal true agar spinner tampil)
   const [jurusanOptions, setJurusanOptions] = useState<JurusanData[]>([])
-  const [fetchingJurusan, setFetchingJurusan] = useState(false)
+  const [fetchingJurusan, setFetchingJurusan] = useState(true)
 
-  const fetchJurusanOptions = useCallback(async () => {
-    try {
-      setFetchingJurusan(true)
-      const res = await fetch('/api/admin/jurusan?status=active')
-      if (res.ok) {
+  useEffect(() => {
+    let cancelled = false
+
+    fetch('/api/admin/jurusan?status=active')
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Gagal memuat data jurusan')
         const result = await res.json()
-        setJurusanOptions(Array.isArray(result) ? result.filter((j: any) => j.status === true) : [])
-      }
-    } catch (err) {
-      console.error('Error fetching jurusan:', err)
-    } finally {
-      setFetchingJurusan(false)
+        const rows = (Array.isArray(result) ? result : []) as JurusanData[]
+        if (!cancelled) setJurusanOptions(rows.filter((j) => j.status === true))
+      })
+      .catch((err) => console.error('Error fetching jurusan:', err))
+      .finally(() => {
+        if (!cancelled) setFetchingJurusan(false)
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [])
-
-  // Load jurusan options on mount
-  useEffect(() => {
-    fetchJurusanOptions()
-  }, [fetchJurusanOptions])
 
   // Filter data
   const filteredData = data
@@ -358,7 +359,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
             </div>
             <h3 className="text-lg font-bold text-gray-900 mb-1">Belum ada data</h3>
             <p className="text-sm text-gray-500 max-w-md mx-auto">
-              Belum ada kelas yang didaftarkan. Klik "Tambah Kelas" untuk menambahkan.
+              Belum ada kelas yang didaftarkan. Klik &ldquo;Tambah Kelas&rdquo; untuk menambahkan.
             </p>
           </div>
         </div>

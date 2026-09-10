@@ -12,6 +12,7 @@ type MengajarRow = {
   mapel_id: string
   kelas_id: string
   materi: string | null
+  semester: string | null
   mata_pelajaran: MapelEmbed
   kelas: KelasEmbed
 }
@@ -31,7 +32,7 @@ export async function GET() {
 
     const { data, error } = await getSupabaseAdmin()
       .from('guru_mengajar')
-      .select('id, materi, mapel_id, kelas_id, mata_pelajaran(nama, kode), kelas(nama_kelas, tingkat, tahun_ajaran)')
+      .select('id, materi, semester, mapel_id, kelas_id, mata_pelajaran(nama, kode), kelas(nama_kelas, tingkat, tahun_ajaran)')
       .eq('guru_id', user.id)
       .order('created_at', { ascending: true })
 
@@ -52,6 +53,7 @@ export async function GET() {
         kelas_nama: kelas?.nama_kelas ?? null,
         tingkat: kelas?.tingkat ?? null,
         tahun_ajaran: kelas?.tahun_ajaran ?? null,
+        semester: row.semester ?? null,
         materi: row.materi ?? null
       }
     })

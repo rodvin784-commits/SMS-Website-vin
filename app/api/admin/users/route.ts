@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: profileError.message }, { status: 400 })
     }
 
-    return NextResponse.json({ message: 'Pengguna berhasil dibuat' }, { status: 201 })
+    return NextResponse.json({ message: 'Pengguna berhasil dibuat', userId }, { status: 201 })
   } catch (err) {
     console.error('Error creating user:', err)
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Terjadi kesalahan server' }, { status: 500 })

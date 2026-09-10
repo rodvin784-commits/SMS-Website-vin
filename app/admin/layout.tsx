@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { ShieldCheck, LayoutDashboard, Users, GraduationCap, BookOpen, Calendar } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()

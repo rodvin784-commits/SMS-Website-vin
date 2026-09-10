@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UserPlus, Users, TrendingUp, Search, Filter, Download, RefreshCw } from 'lucide-react'
-import { FeedbackMessage, Button, StatCard } from '@/components/ui'
-import { UserFilters, UserTable, CreateUserModal, EditUserModal, MengajarModal, type MapelOption, type KelasOption, type GuruAssignment } from '@/components/admin'
+import { UserPlus, Users, Search, Filter, RefreshCw } from 'lucide-react'
+import { FeedbackMessage, Button } from '@/components/ui'
+import { UserTable, CreateUserModal, EditUserModal } from '@/components/admin'
 import type { Profile } from '@/components/admin/UserTable'
-import { supabase } from '@/lib/supabase'
 
 type RoleFilter = 'guru' | 'siswa' | 'semua'
 
@@ -20,12 +19,6 @@ interface UserStats {
   siswa: number
   active: number
   inactive: number
-}
-
-interface MengajarData {
-  mapel: MapelOption[]
-  kelas: KelasOption[]
-  assignments: GuruAssignment[]
 }
 
 const getErrorMessage = (err: unknown): string =>
@@ -79,23 +72,42 @@ export default function AdminUsersPage() {
   // Modal States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [isMengajarModalOpen, setIsMengajarModalOpen] = useState(false)
 
   // Form State
   const [submitting, setSubmitting] = useState(false)
   const [editingUser, setEditingUser] = useState<Profile | null>(null)
 
-  // Mengajar Modal State
-  const [mengajarUser, setMengajarUser] = useState<Profile | null>(null)
-  const [mengajarData, setMengajarData] = useState<MengajarData>({
-    mapel: [],
-    kelas: [],
-    assignments: [],
-  })
-  const [mengajarLoading, setMengajarLoading] = useState(false)
-  const [mengajarSaving, setMengajarSaving] = useState(false)
-  const [mengajarError, setMengajarError] = useState<string | null>(null)
-  const [mengajarSuccess, setMengajarSuccess] = useState<string | null>(null)
+  // Fetch stats helper
+  const fetchStats = async (currentRole: string): Promise<UserStats> => {
+    try {
+      const allUsers = await loadUsersFromApi('semua')
+      const nonAdminUsers = allUsers.filter(u => u.role !== 'admin')
+      const guruUsers = nonAdminUsers.filter(u => u.role === 'guru')
+      const siswaUsers = nonAdminUsers.filter(u => u.role === 'siswa')
+      const activeUsers = nonAdminUsers.filter(u => u.status !== false)
+      const inactiveUsers = nonAdminUsers.filter(u => u.status === false)
+
+      let guruCount = guruUsers.length
+      let siswaCount = siswaUsers.length
+      if (currentRole === 'guru') {
+        guruCount = guruUsers.length
+        siswaCount = 0
+      } else if (currentRole === 'siswa') {
+        guruCount = 0
+        siswaCount = siswaUsers.length
+      }
+
+      return {
+        total: nonAdminUsers.length,
+        guru: guruCount,
+        siswa: siswaCount,
+        active: activeUsers.length,
+        inactive: inactiveUsers.length,
+      }
+    } catch {
+      return { total: 0, guru: 0, siswa: 0, active: 0, inactive: 0 }
+    }
+  }
 
   // Load users & stats
   useEffect(() => {
@@ -127,42 +139,6 @@ export default function AdminUsersPage() {
     return () => { cancelled = true }
   }, [roleFilter])
 
-  const fetchStats = async (currentRole: string): Promise<UserStats> => {
-    try {
-      // Fetch all users for stats (don't filter by role here since we want full stats)
-      const allUsers = await loadUsersFromApi('semua')
-
-      // EXCLUDE ADMIN ACCOUNTS from all stats
-      const nonAdminUsers = allUsers.filter(u => u.role !== 'admin')
-      const guruUsers = nonAdminUsers.filter(u => u.role === 'guru')
-      const siswaUsers = nonAdminUsers.filter(u => u.role === 'siswa')
-      const activeUsers = nonAdminUsers.filter(u => u.status !== false)
-      const inactiveUsers = nonAdminUsers.filter(u => u.status === false)
-
-      // Apply role filter to guru/siswa counts
-      let guruCount = guruUsers.length
-      let siswaCount = siswaUsers.length
-
-      if (currentRole === 'guru') {
-        guruCount = guruUsers.length
-        siswaCount = 0
-      } else if (currentRole === 'siswa') {
-        guruCount = 0
-        siswaCount = siswaUsers.length
-      }
-
-      return {
-        total: nonAdminUsers.length, // Total excluding admin
-        guru: guruCount,
-        siswa: siswaCount,
-        active: activeUsers.length,
-        inactive: inactiveUsers.length,
-      }
-    } catch {
-      return { total: 0, guru: 0, siswa: 0, active: 0, inactive: 0 }
-    }
-  }
-
   // Refresh data
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -180,135 +156,6 @@ export default function AdminUsersPage() {
       setRefreshing(false)
     }
   }, [roleFilter, showFeedback])
-
-  // Open Mengajar Modal
-  const openMengajarModal = useCallback(async (user: Profile) => {
-    if (user.role !== 'guru') {
-      showFeedback('error', 'Hanya bisa mengatur mapel untuk akun guru')
-      return
-    }
-
-    setMengajarUser(user)
-    setIsMengajarModalOpen(true)
-    setMengajarLoading(true)
-    setMengajarError(null)
-    setMengajarSuccess(null)
-    setMengajarData({ mapel: [], kelas: [], assignments: [] })
-
-    try {
-      const [optionsRes, assignRes] = await Promise.all([
-        fetch('/api/admin/mengajar'),
-        fetch(`/api/admin/mengajar?guru_id=${user.id}`),
-      ])
-
-      const optionsJson = await readJson(optionsRes)
-      const assignJson = await readJson(assignRes)
-
-      if (!optionsRes.ok) {
-        const errorMsg = optionsJson?.error as string || `HTTP ${optionsRes.status}`
-        throw new Error(errorMsg)
-      }
-      if (!assignRes.ok) {
-        const errorMsg = assignJson?.error as string || `HTTP ${assignRes.status}`
-        throw new Error(errorMsg)
-      }
-
-      const mapelRaw = optionsJson?.mapel
-      const mapelData: MapelOption[] = Array.isArray(mapelRaw)
-        ? mapelRaw.map((m: any) => ({ id: m.id, kode: m.kode, nama: m.nama }))
-        : []
-
-      const kelasRaw = optionsJson?.kelas
-      const kelasData: KelasOption[] = Array.isArray(kelasRaw)
-        ? kelasRaw.map((k: any) => ({
-            id: k.id,
-            nama_kelas: k.nama_kelas,
-            tingkat: k.tingkat,
-            tahun_ajaran: k.tahun_ajaran,
-          }))
-        : []
-
-      const assignmentsRaw = assignJson?.assignments
-      const assignmentsData: GuruAssignment[] = Array.isArray(assignmentsRaw)
-        ? assignmentsRaw.map((a: any) => ({
-            id: a.id,
-            mapel_id: a.mapel_id,
-            mapel_nama: a.mapel_nama,
-            mapel_kode: a.mapel_kode,
-            kelas_id: a.kelas_id,
-            kelas_nama: a.kelas_nama,
-            materi: a.materi,
-          }))
-        : []
-
-      setMengajarData({ mapel: mapelData, kelas: kelasData, assignments: assignmentsData })
-    } catch (err) {
-      setMengajarError(getErrorMessage(err))
-      showFeedback('error', getErrorMessage(err))
-    } finally {
-      setMengajarLoading(false)
-    }
-  }, [showFeedback])
-
-  const closeMengajarModal = useCallback(() => {
-    setIsMengajarModalOpen(false)
-    setMengajarUser(null)
-    setMengajarData({ mapel: [], kelas: [], assignments: [] })
-    setMengajarError(null)
-    setMengajarSuccess(null)
-  }, [])
-
-  const handleSaveMengajar = useCallback(async (data: {
-    guru_id: string  // ← Gunakan 'guru_id' (dengan underscore) sesuai API
-    assignments: { mapel_id: string; kelas_id: string; materi: string | null }[]
-  }) => {
-    setMengajarSaving(true)
-    setMengajarError(null)
-    setMengajarSuccess(null)
-
-    // VALIDASI AWAL: Pastikan guru_id ada sebelum kirim ke API
-    if (!data.guru_id || data.guru_id.trim() === '') {
-      const errorMsg = 'ID guru wajib diisi'
-      setMengajarError(errorMsg)
-      showFeedback('error', errorMsg)
-      setMengajarSaving(false)
-      return
-    }
-
-    // Validasi assignments tidak kosong
-    if (!data.assignments || data.assignments.length === 0) {
-      const errorMsg = 'Minimal satu kelas harus dipilih'
-      setMengajarError(errorMsg)
-      showFeedback('error', errorMsg)
-      setMengajarSaving(false)
-      return
-    }
-
-    try {
-      const res = await fetch('/api/admin/mengajar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-
-      const responseJson = await readJson(res)
-
-      if (!res.ok) {
-        const errorMsg = responseJson?.error as string || `HTTP ${res.status}`
-        throw new Error(errorMsg)
-      }
-
-      setMengajarSuccess('Penugasan berhasil disimpan.')
-      showFeedback('success', 'Penugasan berhasil disimpan.')
-      closeMengajarModal()
-    } catch (err) {
-      const errorMsg = getErrorMessage(err)
-      setMengajarError(errorMsg)
-      showFeedback('error', errorMsg)
-    } finally {
-      setMengajarSaving(false)
-    }
-  }, [showFeedback, closeMengajarModal])
 
   const handleCreateUser = useCallback(async (data: {
     nama_lengkap: string
@@ -330,7 +177,12 @@ export default function AdminUsersPage() {
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          nama_lengkap: data.nama_lengkap,
+          email: data.email,
+          password: data.password,
+          role: data.role,
+        }),
       })
 
       const responseJson = await readJson(res)
@@ -605,7 +457,7 @@ export default function AdminUsersPage() {
         {/* Filter Info */}
         <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-400">
           <span>Menampilkan <strong className="text-gray-600">{filteredStats.total}</strong> dari <strong className="text-gray-600">{stats.total}</strong> pengguna</span>
-          {searchQuery && <span>Pencarian: "{searchQuery}"</span>}
+          {searchQuery && <span>Pencarian: &ldquo;{searchQuery}&rdquo;</span>}
         </div>
       </div>
 
@@ -618,7 +470,6 @@ export default function AdminUsersPage() {
           setIsEditModalOpen(true)
         }}
         onDelete={handleDeleteUser}
-        onOpenMengajar={openMengajarModal}
         showCount={true}
       />
 
@@ -640,19 +491,6 @@ export default function AdminUsersPage() {
         }}
         onSubmit={handleUpdateUser}
         submitting={submitting}
-      />
-
-      {/* Mengajar Modal */}
-      <MengajarModal
-        isOpen={isMengajarModalOpen}
-        user={mengajarUser}
-        onClose={closeMengajarModal}
-        onSave={handleSaveMengajar}
-        options={mengajarData}
-        loading={mengajarLoading}
-        saving={mengajarSaving}
-        error={mengajarError}
-        success={mengajarSuccess}
       />
     </div>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { UserPlus } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
@@ -33,6 +33,15 @@ export function CreateUserModal({
     role: 'guru',
   })
 
+  // Reset form when modal opens
+  useEffect(() => {
+    if (!isOpen) return
+    const raf = requestAnimationFrame(() => {
+      setFormData({ nama_lengkap: '', email: '', password: '', role: 'guru' })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [isOpen])
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     await onSubmit(formData)
@@ -45,8 +54,24 @@ export function CreateUserModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Tambah Pengguna Baru" size="md">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Tambah Pengguna Baru"
+      size="md"
+    >
       <form onSubmit={handleSubmit} className="space-y-5 pt-2">
+        {/* Header */}
+        <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
+          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+            <UserPlus className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-gray-900">Data Pengguna</h3>
+            <p className="text-xs text-gray-500">Isi data diri pengguna baru</p>
+          </div>
+        </div>
+
         {/* Nama Lengkap */}
         <div className="space-y-1.5">
           <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
@@ -57,7 +82,6 @@ export function CreateUserModal({
             placeholder="Contoh: Budi Santoso, S.Pd"
             value={formData.nama_lengkap}
             onChange={handleChange('nama_lengkap')}
-            icon={<UserPlus className="h-5 w-5" />}
             required
           />
         </div>
@@ -107,8 +131,8 @@ export function CreateUserModal({
               }
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
             >
-              <option value="guru">👨‍🏫 Guru</option>
-              <option value="siswa">🎓 Siswa</option>
+              <option value="guru">Guru</option>
+              <option value="siswa">Siswa</option>
             </select>
             <svg
               className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none"
@@ -120,6 +144,13 @@ export function CreateUserModal({
             </svg>
           </div>
         </div>
+
+        {/* Info */}
+        {formData.role === 'guru' && (
+          <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
+            <strong>Catatan:</strong> Setelah akun guru dibuat, atur mata pelajaran dan kelas dari menu <strong>Mata Pelajaran</strong> → Detail → Guru Pengampu.
+          </div>
+        )}
 
         {/* Buttons */}
         <div className="pt-4 flex items-center space-x-3 border-t border-gray-100 mt-2">

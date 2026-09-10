@@ -7,7 +7,6 @@ import { AppShell } from '@/components/layout/AppShell'
 import { StatCard } from '@/components/ui/StatCard'
 import { BookOpen, GraduationCap, Calendar, ClipboardList, LayoutDashboard } from 'lucide-react'
 import { SubjectGroup } from '@/components/teacher'
-import type { LucideIcon } from 'lucide-react'
 
 type GuruAssignment = {
   id: string
@@ -16,6 +15,9 @@ type GuruAssignment = {
   mapel_kode: string | null
   kelas_id: string
   kelas_nama: string | null
+  tingkat: number | null
+  tahun_ajaran: string | null
+  semester: string | null
   materi: string | null
 }
 
@@ -116,17 +118,6 @@ export default function TeacherDashboard() {
     router.replace('/login')
   }
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">
-        <div className="flex flex-col items-center space-y-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-          <p className="text-sm font-medium text-gray-400">Memuat Panel Guru...</p>
-        </div>
-      </div>
-    )
-  }
-
   // Kelompokkan penugasan per mata pelajaran
   const mapelGroups = useMemo(() => {
     const groups = new Map<string, MapelGroup>()
@@ -151,6 +142,17 @@ export default function TeacherDashboard() {
     () => new Set(assignments.map((a) => a.kelas_id)).size,
     [assignments]
   )
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">
+        <div className="flex flex-col items-center space-y-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+          <p className="text-sm font-medium text-gray-400">Memuat Panel Guru...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <AppShell
