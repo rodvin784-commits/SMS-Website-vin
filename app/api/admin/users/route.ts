@@ -227,13 +227,23 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Pengguna tidak ditemukan' }, { status: 404 })
     }
 
-    // 2. Hapus akun auth (agar email tidak terkunci) - dilakukan pertama
+    // 2. Hapus penugasan mengajar milik guru ini agar tidak jadi data orphan
+    const { error: assignError } = await supabaseAdmin
+      .from('guru_mengajar')
+      .delete()
+      .eq('guru_id', id)
+
+    if (assignError) {
+      return NextResponse.json({ error: assignError.message }, { status: 400 })
+    }
+
+    // 3. Hapus akun auth (agar email tidak terkunci) - dilakukan sebelum hapus profil
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id)
     if (authError) {
       return NextResponse.json({ error: authError.message }, { status: 400 })
     }
 
-    // 3. Hapus profil dari tabel profiles
+    // 4. Hapus profil dari tabel profiles
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .delete()

@@ -52,9 +52,9 @@ profiles (guru) ──1:N──► guru_mengajar ◄──N:1── mata_pelajar
 
 | Endpoint | Method | Fungsi |
 |---|---|---|
-| `/api/admin/users` | GET/POST/PUT/DELETE | CRUD pengguna |
+| `/api/admin/users` | GET/POST/PUT/DELETE | CRUD pengguna (PUT mendukung reset password opsional) |
 | `/api/admin/mata-pelajaran` | GET/POST/PUT/DELETE | CRUD mata pelajaran + guru pengampu |
-| `/api/admin/mengajar` | GET/POST/DELETE | Kelola penugasan guru mengajar |
+| `/api/admin/mata-pelajaran/[id]/penugasan` | GET/POST/PUT/DELETE | Kelola penugasan guru per mapel (kelas + semester + materi) |
 | `/api/admin/kelas` | GET/POST/PUT/DELETE | CRUD kelas |
 | `/api/admin/jurusan` | GET/POST/PUT/DELETE | CRUD jurusan |
 
@@ -66,17 +66,14 @@ profiles (guru) ──1:N──► guru_mengajar ◄──N:1── mata_pelajar
 
 ## Flow Penugasan Guru
 
-### Cara Baru (Rekomendasi)
-
 1. **Buat akun guru** — Manajemen Pengguna → Tambah Pengguna → isi data → Simpan
 2. **Buat mata pelajaran** — Manajemen Mata Pelajaran → Tambah Mata Pelajaran → isi kode, nama, deskripsi → Simpan
-3. **Detail modal terbuka otomatis** — Lihat guru pengampu & kelas
-4. **Atur penugasan** — Dari Manajemen Pengguna, edit guru → assign mapel + kelas
+3. **Detail modal terbuka otomatis** — Atur guru pengampu langsung dari sini:
+   pilih guru + kelas + semester (+ materi opsional) → Simpan
+4. **Edit/hapus penugasan** — di modal detail yang sama; edit materi & semester per baris penugasan
+5. **Hapus akun guru** — penugasannya di `guru_mengajar` ikut terhapus otomatis
 
-### Flow Lama (Masih Berfungsi)
-
-- CreateUserModal / EditUserModal → Step 1 (data diri) → Step 2 (pilih mapel & kelas) → Simpan
-- Assignment tersimpan ke tabel `guru_mengajar`
+> Catatan: reset password guru/siswa dilakukan lewat Manajemen Pengguna → Edit → field "Password Baru" (kosongkan jika tidak diubah).
 
 ## Perubahan Terakhir
 

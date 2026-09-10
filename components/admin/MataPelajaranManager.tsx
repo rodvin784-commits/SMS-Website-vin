@@ -51,33 +51,22 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
     return () => clearTimeout(timer)
   }, [feedback])
 
-  // Fetch data
-  const fetchData = useCallback(async ({ showLoading = false } = {}) => {
-    if (showLoading) setLoading(true)
-    try {
-      const res = await fetch('/api/admin/mata-pelajaran')
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.error || 'Gagal memuat data')
-      }
-      const result = await res.json()
-      setData(Array.isArray(result) ? result : [])
-    } catch (err) {
-      console.error('Error fetching mata pelajaran:', err)
-      setFeedback({ type: 'error', message: 'Gagal memuat data mata pelajaran' })
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  // Refresh trigger: naikkan angka untuk memuat ulang data (dipakai setelah mutasi)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const refreshData = useCallback(() => {
+    setRefreshKey((k) => k + 1)
+    if (onDataChanged) onDataChanged()
+  }, [onDataChanged])
 
-  // Load data on mount (loading starts as true via useState initial value)
+  // Load data on mount, saat refresh diminta (skeleton hanya tampil di load awal)
   useEffect(() => {
     let cancelled = false
+
     fetch('/api/admin/mata-pelajaran')
       .then(async (res) => {
         if (!res.ok) {
-          const errorData = await res.json()
-          throw new Error(errorData.error || 'Gagal memuat data')
+          const errorData = await res.json().catch(() => null)
+          throw new Error(errorData?.error || 'Gagal memuat data')
         }
         return res.json()
       })
@@ -91,14 +80,9 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
-    return () => { cancelled = true }
-  }, [])
 
-  // Refresh data
-  const refreshData = useCallback(async () => {
-    await fetchData({ showLoading: true })
-    if (onDataChanged) onDataChanged()
-  }, [fetchData, onDataChanged])
+    return () => { cancelled = true }
+  }, [refreshKey])
 
   // Penugasan state (inside detail modal)
   type PenugasanItem = {

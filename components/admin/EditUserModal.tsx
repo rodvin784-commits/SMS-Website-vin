@@ -5,6 +5,7 @@ import { Pencil } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
 import type { Profile } from '@/components/admin/UserTable'
 
 interface EditUserFormData {
@@ -12,6 +13,7 @@ interface EditUserFormData {
   email: string
   role: 'guru' | 'siswa'
   status: boolean
+  password?: string
 }
 
 interface EditUserModalProps {
@@ -29,12 +31,14 @@ export function EditUserModal({
   onSubmit,
   submitting = false,
 }: EditUserModalProps) {
+  const [localError, setLocalError] = useState<string | null>(null)
   const [formData, setFormData] = useState<EditUserFormData>({
     nama_lengkap: '',
     email: '',
     role: 'guru',
     status: true,
   })
+  const [newPassword, setNewPassword] = useState('')
 
   // Reset form when user changes
   useEffect(() => {
@@ -46,6 +50,7 @@ export function EditUserModal({
         role: (user.role as 'guru' | 'siswa') || 'guru',
         status: user.status !== false,
       })
+      setNewPassword('')
     })
     return () => cancelAnimationFrame(raf)
   }, [user])
@@ -53,7 +58,12 @@ export function EditUserModal({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!user) return
-    await onSubmit({ ...formData, id: user.id })
+    if (newPassword && newPassword.length < 6) {
+      setLocalError('Password baru minimal 6 karakter')
+      return
+    }
+    setLocalError(null)
+    await onSubmit({ ...formData, password: newPassword || undefined, id: user.id })
   }
 
   const handleChange = (field: keyof EditUserFormData) => (
@@ -71,6 +81,11 @@ export function EditUserModal({
     >
       {user && (
         <form onSubmit={handleSubmit} className="space-y-5 pt-2">
+          {/* Error validasi lokal */}
+          {localError && (
+            <FeedbackMessage type="error" message={localError} />
+          )}
+
           {/* Header */}
           <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
             <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
@@ -165,6 +180,21 @@ export function EditUserModal({
                 <span className="text-sm text-gray-700">Nonaktif</span>
               </label>
             </div>
+          </div>
+
+          {/* Reset Password (opsional) */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              Password Baru <span className="text-gray-400 font-medium normal-case">(opsional)</span>
+            </label>
+            <Input
+              type="password"
+              placeholder="Biarkan kosong jika tidak ingin mengubah"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-gray-400 mt-1">Minimal 6 karakter. Kosongkan untuk mempertahankan password lama.</p>
           </div>
 
           {user.role === 'guru' && (

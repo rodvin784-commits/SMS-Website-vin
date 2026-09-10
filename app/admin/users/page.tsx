@@ -207,6 +207,7 @@ export default function AdminUsersPage() {
     email: string
     role: 'guru' | 'siswa'
     status: boolean
+    password?: string
   }) => {
     if (!data.id) {
       showFeedback('error', 'Data pengguna tidak valid!')
@@ -232,7 +233,7 @@ export default function AdminUsersPage() {
         throw new Error(errorMsg)
       }
 
-      showFeedback('success', 'Data pengguna berhasil diperbarui!')
+      showFeedback('success', data.password ? 'Data & password pengguna berhasil diperbarui!' : 'Data pengguna berhasil diperbarui!')
       setIsEditModalOpen(false)
     } catch (err) {
       showFeedback('error', getErrorMessage(err))
