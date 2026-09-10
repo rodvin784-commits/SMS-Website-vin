@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Plus, Pencil, Trash2, Archive, ArchiveRestore, BookOpen, Filter, Search, CheckCircle2, Users, GraduationCap } from 'lucide-react'
+import { Plus, Pencil, Trash2, Archive, ArchiveRestore, BookOpen, Filter, Search, CheckCircle2, Users, GraduationCap, UserCog, Eye } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -40,6 +40,8 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  // Mode modal detail: 'view' = lihat saja (read-only), 'manage' = kelola penugasan
+  const [detailMode, setDetailMode] = useState<'view' | 'manage'>('view')
   const [detailItem, setDetailItem] = useState<MataPelajaranData | null>(null)
   const [editingItem, setEditingItem] = useState<MataPelajaranData | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -260,8 +262,9 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       return matchesSearch && matchesStatus
     })
 
-  // Open detail modal — fetch fresh data to ensure guru_pengampu & kelas_list exist
-  const openDetail = useCallback(async (item: MataPelajaranData) => {
+  // Buka modal detail — mode 'view' (mata, read-only) atau 'manage' (kelola penugasan)
+  const openDetail = useCallback(async (item: MataPelajaranData, mode: 'view' | 'manage' = 'view') => {
+    setDetailMode(mode)
     setDetailFeedback(null)
     setNewGuruId('')
     setNewKelasId('')
@@ -312,7 +315,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
 
       // Buka detail view dengan data lengkap
       setTimeout(() => {
-        openDetail(result as MataPelajaranData)
+        openDetail(result as MataPelajaranData, 'manage')
       }, 300)
     } catch (err) {
       showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
@@ -532,7 +535,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
                   <tr
                     key={item.id}
                     className="hover:bg-gray-50/80 transition-colors group cursor-pointer"
-                    onClick={() => openDetail(item)}
+                    onClick={() => openDetail(item, 'view')}
                   >
                     <td className="py-4 px-6">
                       <span className="font-bold text-emerald-600 text-sm whitespace-nowrap">{item.kode}</span>
@@ -579,23 +582,31 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                        {/* Mata = lihat saja (read-only) */}
                         <button
-                          onClick={() => openDetail(item)}
+                          onClick={() => openDetail(item, 'view')}
                           className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                          title="Lihat Detail"
+                          title="Lihat Detail (read-only)"
                         >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
+                          <Eye className="h-4 w-4" />
                         </button>
+                        {/* Kelola penugasan guru */}
+                        <button
+                          onClick={() => openDetail(item, 'manage')}
+                          disabled={!item.status}
+                          className="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={item.status ? 'Kelola Penugasan Guru' : 'Nonaktifkan mapel dahulu untuk mengelola penugasan'}
+                        >
+                          <UserCog className="h-4 w-4" />
+                        </button>
+                        {/* Pensil = edit data mapel */}
                         <button
                           onClick={() => {
                             setEditingItem(item)
                             setIsEditModalOpen(true)
                           }}
                           className="p-2 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                          title="Edit"
+                          title="Edit Mata Pelajaran"
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
@@ -620,11 +631,11 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
         </div>
       )}
 
-      {/* ===== DETAIL MODAL ===== */}
+      {/* ===== DETAIL MODAL (view = read-only, manage = kelola penugasan) ===== */}
       <Modal
         isOpen={isDetailModalOpen}
         onClose={() => { setIsDetailModalOpen(false); setDetailItem(null) }}
-        title="Detail Mata Pelajaran"
+        title={detailMode === 'manage' ? 'Kelola Penugasan Guru' : 'Detail Mata Pelajaran'}
         size="lg"
       >
         {detailItem && (
@@ -741,31 +752,35 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
                               ) : (
                                 <span className="text-xs text-gray-300 italic">Belum ada materi</span>
                               )}
-                              <button
-                                onClick={() => startEditMateri(a)}
-                                className="p-0.5 text-gray-400 hover:text-blue-600 rounded transition-all"
-                                title="Edit Materi / Semester"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
+                              {detailMode === 'manage' && (
+                                <button
+                                  onClick={() => startEditMateri(a)}
+                                  className="p-0.5 text-gray-400 hover:text-blue-600 rounded transition-all"
+                                  title="Edit Materi / Semester"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                              )}
                             </span>
                           )}
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleDeletePenugasan(detailItem.id, a.id)}
-                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
-                        title="Hapus Penugasan"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {detailMode === 'manage' && (
+                        <button
+                          onClick={() => handleDeletePenugasan(detailItem.id, a.id)}
+                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
+                          title="Hapus Penugasan"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Form Tambah Penugasan */}
-              {detailItem.status && (
+              {/* Form Tambah Penugasan — hanya di mode kelola */}
+              {detailMode === 'manage' && detailItem.status && (
                 <div className="mt-4 bg-blue-50/60 border border-blue-100 rounded-xl p-4">
                   <p className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-3">Tambah Penugasan</p>
                   <div className="flex flex-col sm:flex-row gap-3">
@@ -871,19 +886,21 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
               )}
             </div>
 
-            {/* Actions */}
+            {/* Actions — mode view hanya Tutup; mode manage bisa lanjut edit mapel */}
             <div className="pt-4 flex items-center space-x-3 border-t border-gray-100">
               <Button variant="secondary" onClick={() => { setIsDetailModalOpen(false); setDetailItem(null) }} fullWidth size="md">
                 Tutup
               </Button>
-              <Button onClick={() => {
-                setIsDetailModalOpen(false)
-                setEditingItem(detailItem)
-                setIsEditModalOpen(true)
-              }} fullWidth size="md">
-                <Pencil className="h-4 w-4" />
-                Edit Mata Pelajaran
-              </Button>
+              {detailMode === 'manage' && (
+                <Button onClick={() => {
+                  setIsDetailModalOpen(false)
+                  setEditingItem(detailItem)
+                  setIsEditModalOpen(true)
+                }} fullWidth size="md">
+                  <Pencil className="h-4 w-4" />
+                  Edit Mata Pelajaran
+                </Button>
+              )}
             </div>
           </div>
         )}
