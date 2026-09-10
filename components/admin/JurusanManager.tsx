@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Plus, Pencil, Trash2, GraduationCap, Search, CheckCircle2, Filter } from 'lucide-react'
+import { Plus, Pencil, Trash2, GraduationCap, Search, CheckCircle2, Filter, Building2 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
+import { useFeedback } from '@/hooks/useFeedback'
 
 interface JurusanData {
   id: string
@@ -13,6 +14,7 @@ interface JurusanData {
   nama_jurusan: string
   status: boolean
   created_at: string
+  jumlah_kelas?: number
 }
 
 interface JurusanManagerProps {
@@ -30,7 +32,9 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<JurusanData | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+
+  // Feedback (auto-dismiss)
+  const { feedback, showFeedback, setFeedback } = useFeedback()
 
   // Refresh trigger: naikkan angka untuk memuat ulang data (dipakai setelah mutasi)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -65,7 +69,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
       })
 
     return () => { cancelled = true }
-  }, [statusFilter, refreshKey])
+  }, [statusFilter, refreshKey, setFeedback])
 
   // Filter data
   const filteredData = data
@@ -97,15 +101,15 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
         throw new Error(result.error || 'Gagal menambahkan jurusan')
       }
 
-      setFeedback({ type: 'success', message: 'Jurusan berhasil ditambahkan!' })
+      showFeedback('success', 'Jurusan berhasil ditambahkan!')
       setIsCreateModalOpen(false)
       refreshData()
     } catch (err) {
-      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
       setSubmitting(false)
     }
-  }, [refreshData])
+  }, [refreshData, showFeedback, setFeedback])
 
   // Update handler
   const handleUpdate = useCallback(async (id: string, formData: { kode?: string; nama_jurusan?: string; status?: boolean }) => {
@@ -125,16 +129,16 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
         throw new Error(result.error || 'Gagal memperbarui jurusan')
       }
 
-      setFeedback({ type: 'success', message: 'Jurusan berhasil diperbarui!' })
+      showFeedback('success', 'Jurusan berhasil diperbarui!')
       setIsEditModalOpen(false)
       setEditingItem(null)
       refreshData()
     } catch (err) {
-      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
       setSubmitting(false)
     }
-  }, [refreshData])
+  }, [refreshData, showFeedback, setFeedback])
 
   // Delete handler
   const handleDelete = useCallback(async (id: string) => {
@@ -153,12 +157,12 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
         throw new Error(result.error || 'Gagal menghapus jurusan')
       }
 
-      setFeedback({ type: 'success', message: 'Jurusan berhasil dihapus!' })
+      showFeedback('success', 'Jurusan berhasil dihapus!')
       refreshData()
     } catch (err) {
-      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     }
-  }, [refreshData])
+  }, [refreshData, showFeedback, setFeedback])
 
   return (
     <div className="space-y-6">
@@ -289,6 +293,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Kode</th>
                   <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Nama Jurusan</th>
+                  <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Jumlah Kelas</th>
                   <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
                   <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider text-right">Aksi</th>
                 </tr>
@@ -298,6 +303,12 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
                   <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group">
                     <td className="py-4 px-6 font-bold text-amber-600 text-sm">{item.kode}</td>
                     <td className="py-4 px-6 font-semibold text-gray-900">{item.nama_jurusan}</td>
+                    <td className="py-4 px-6">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700">
+                        <Building2 className="h-3.5 w-3.5" />
+                        {item.jumlah_kelas ?? 0} kelas
+                      </span>
+                    </td>
                     <td className="py-4 px-6">
                       <span
                         className={`

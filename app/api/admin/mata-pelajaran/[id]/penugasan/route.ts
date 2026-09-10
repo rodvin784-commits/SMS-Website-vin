@@ -1,13 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { adminCheck, getSupabaseAdmin } from '@/lib/supabase-server'
-
-function denyResponse() {
-  return NextResponse.json(
-    { error: 'Tidak diizinkan. Hanya admin yang dapat mengakses data ini.' },
-    { status: 403 }
-  )
-}
+import { denyResponse, serverError } from '@/lib/api-admin'
 
 const SEMESTER_OPTIONS = ['ganjil', 'genap'] as const
 type Semester = (typeof SEMESTER_OPTIONS)[number]
@@ -123,11 +117,7 @@ export async function GET(
       })),
     }, { status: 200 })
   } catch (err) {
-    console.error('Error fetching penugasan:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error fetching penugasan:')
   }
 }
 
@@ -233,11 +223,7 @@ export async function POST(
       assignment: result,
     }, { status: 201 })
   } catch (err) {
-    console.error('Error creating penugasan:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error creating penugasan:')
   }
 }
 
@@ -303,11 +289,7 @@ export async function PUT(
       assignment: result,
     }, { status: 200 })
   } catch (err) {
-    console.error('Error updating penugasan:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error updating penugasan:')
   }
 }
 
@@ -356,10 +338,6 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Penugasan berhasil dihapus' }, { status: 200 })
   } catch (err) {
-    console.error('Error deleting penugasan:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error deleting penugasan:')
   }
 }

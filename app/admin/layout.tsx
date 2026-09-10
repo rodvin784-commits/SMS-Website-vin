@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
-import { ShieldCheck, LayoutDashboard, Users, GraduationCap, BookOpen, Calendar } from 'lucide-react'
+import { ShieldCheck, LayoutDashboard, Users, GraduationCap, BookOpen, Calendar, Building2 } from 'lucide-react'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -92,7 +92,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { href: '/admin/users', icon: Users, label: 'Manajemen Pengguna' },
     { href: '/admin/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran' },
-    { href: '/admin/jurusan', icon: GraduationCap, label: 'Data Jurusan' },
+    { href: '/admin/jurusan', icon: Building2, label: 'Data Jurusan' },
     { href: '/admin/kelas', icon: GraduationCap, label: 'Data Kelas' },
     { href: '#', icon: Calendar, label: 'Jadwal Pelajaran' },
   ]

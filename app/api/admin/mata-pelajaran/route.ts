@@ -1,13 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { adminCheck, getSupabaseAdmin } from '@/lib/supabase-server'
-
-function denyResponse() {
-  return NextResponse.json(
-    { error: 'Tidak diizinkan. Hanya admin yang dapat mengakses data ini.' },
-    { status: 403 }
-  )
-}
+import { denyResponse, serverError } from '@/lib/api-admin'
 
 const SELECT_FIELDS = 'id, kode, nama, deskripsi, status, created_at, updated_at'
 
@@ -103,11 +97,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result, { status: 200 })
   } catch (err) {
-    console.error('Error listing mata pelajaran:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error listing mata pelajaran:')
   }
 }
 
@@ -181,11 +171,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result, { status: 201 })
   } catch (err) {
-    console.error('Error creating mata pelajaran:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error creating mata pelajaran:')
   }
 }
 
@@ -272,11 +258,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(data, { status: 200 })
   } catch (err) {
-    console.error('Error updating mata pelajaran:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error updating mata pelajaran:')
   }
 }
 
@@ -352,10 +334,6 @@ export async function DELETE(request: Request) {
       action: 'deleted',
     }, { status: 200 })
   } catch (err) {
-    console.error('Error deleting mata pelajaran:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error deleting mata pelajaran:')
   }
 }

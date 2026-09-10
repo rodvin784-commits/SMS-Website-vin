@@ -1,13 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { adminCheck, getSupabaseAdmin } from '@/lib/supabase-server'
-
-function denyResponse() {
-  return NextResponse.json(
-    { error: 'Tidak diizinkan. Hanya admin yang dapat mengakses data ini.' },
-    { status: 403 }
-  )
-}
+import { denyResponse, serverError } from '@/lib/api-admin'
 
 // GET /api/admin/jurusan - List semua jurusan
 export async function GET(request: NextRequest) {
@@ -23,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('jurusan')
-      .select('id, nama_jurusan, kode, status, created_at')
+      .select('id, nama_jurusan, kode, status, created_at, kelas(id)')
       .order('nama_jurusan', { ascending: true })
 
     if (status === 'active') {
@@ -38,13 +32,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    return NextResponse.json(data ?? [], { status: 200 })
-  } catch (err) {
-    console.error('Error listing jurusan:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
+    // Sertakan jumlah kelas yang terhubung ke jurusan (semua status)
+    const result = ((data ?? []) as Array<{ id: string; nama_jurusan: string; kode: string; status: boolean; created_at: string; kelas: Array<{ id: string }> | null }>).map(
+      (j) => ({
+        id: j.id,
+        nama_jurusan: j.nama_jurusan,
+        kode: j.kode,
+        status: j.status,
+        created_at: j.created_at,
+        jumlah_kelas: Array.isArray(j.kelas) ? j.kelas.length : 0,
+      })
     )
+
+    return NextResponse.json(result, { status: 200 })
+  } catch (err) {
+    return serverError(err, 'Error listing jurusan:')
   }
 }
 
@@ -116,11 +118,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result, { status: 201 })
   } catch (err) {
-    console.error('Error creating jurusan:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error creating jurusan:')
   }
 }
 
@@ -197,11 +195,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(data, { status: 200 })
   } catch (err) {
-    console.error('Error updating jurusan:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error updating jurusan:')
   }
 }
 
@@ -251,10 +245,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ message: 'Jurusan berhasil dihapus' }, { status: 200 })
   } catch (err) {
-    console.error('Error deleting jurusan:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error deleting jurusan:')
   }
 }

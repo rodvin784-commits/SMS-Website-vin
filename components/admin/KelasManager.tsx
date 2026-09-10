@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
+import { useFeedback } from '@/hooks/useFeedback'
 
 interface JurusanData {
   id: string
@@ -49,7 +50,9 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<KelasData | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+
+  // Feedback (auto-dismiss)
+  const { feedback, showFeedback, setFeedback } = useFeedback()
 
   // Tahun ajaran options (otomatis generate)
   const tahunAjaranOptions: string[] = useMemo(() => {
@@ -93,7 +96,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
       })
 
     return () => { cancelled = true }
-  }, [statusFilter, tingkatFilter, refreshKey])
+  }, [statusFilter, tingkatFilter, refreshKey, setFeedback])
 
   // Jurusan options (sekali saat mount; fetchingJurusan awal true agar spinner tampil)
   const [jurusanOptions, setJurusanOptions] = useState<JurusanData[]>([])
@@ -156,15 +159,15 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
         throw new Error(result.error || 'Gagal menambahkan kelas')
       }
 
-      setFeedback({ type: 'success', message: 'Kelas berhasil ditambahkan!' })
+      showFeedback('success', 'Kelas berhasil ditambahkan!')
       setIsCreateModalOpen(false)
       refreshData()
     } catch (err) {
-      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
       setSubmitting(false)
     }
-  }, [refreshData])
+  }, [refreshData, showFeedback, setFeedback])
 
   // Update handler
   const handleUpdate = useCallback(async (id: string, formData: Partial<KelasFormData> & { status?: boolean }) => {
@@ -184,16 +187,16 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
         throw new Error(result.error || 'Gagal memperbarui kelas')
       }
 
-      setFeedback({ type: 'success', message: 'Kelas berhasil diperbarui!' })
+      showFeedback('success', 'Kelas berhasil diperbarui!')
       setIsEditModalOpen(false)
       setEditingItem(null)
       refreshData()
     } catch (err) {
-      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
       setSubmitting(false)
     }
-  }, [refreshData])
+  }, [refreshData, showFeedback, setFeedback])
 
   // Delete handler
   const handleDelete = useCallback(async (id: string) => {
@@ -212,12 +215,12 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
         throw new Error(result.error || 'Gagal menghapus kelas')
       }
 
-      setFeedback({ type: 'success', message: 'Kelas berhasil dihapus!' })
+      showFeedback('success', 'Kelas berhasil dihapus!')
       refreshData()
     } catch (err) {
-      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     }
-  }, [refreshData])
+  }, [refreshData, showFeedback, setFeedback])
 
   // Generate tingkat options (1-12)
   const tingkatOptions = useMemo((): { value: string; label: string }[] => {
@@ -569,6 +572,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
                 nama_kelas: formData.get('nama_kelas') as string || undefined,
                 tingkat: formData.get('tingkat') ? parseInt(formData.get('tingkat') as string, 10) : undefined,
                 tahun_ajaran: formData.get('tahun_ajaran') as string || undefined,
+                jurusan_id: (formData.get('jurusan_id') as string) || null,
                 status: formData.get('status') === 'on' || formData.get('status') === 'true',
               })
             }}
@@ -634,6 +638,32 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+                Jurusan <span className="text-gray-400 font-medium normal-case">(opsional)</span>
+              </label>
+              {fetchingJurusan ? (
+                <div className="py-3 text-center text-sm text-gray-400">Memuat jurusan...</div>
+              ) : jurusanOptions.length === 0 ? (
+                <div className="py-3 text-center text-sm text-amber-600 bg-amber-50 rounded-xl">
+                  <p className="mb-1">Belum ada jurusan</p>
+                  <p className="text-xs opacity-80">Tambahkan jurusan terlebih dahulu</p>
+                </div>
+              ) : (
+                <Select
+                  name="jurusan_id"
+                  defaultValue={editingItem.jurusan_id ?? ''}
+                  options={[
+                    { value: '', label: ' -- Tanpa Jurusan --' },
+                    ...jurusanOptions.map((j: JurusanData) => ({
+                      value: j.id,
+                      label: `${j.kode} - ${j.nama_jurusan}`,
+                    })),
+                  ]}
+                />
+              )}
             </div>
 
             <div className="space-y-2">

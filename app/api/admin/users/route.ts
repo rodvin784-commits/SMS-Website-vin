@@ -1,13 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { adminCheck, getSupabaseAdmin } from '@/lib/supabase-server'
-
-function denyResponse() {
-  return NextResponse.json(
-    { error: 'Tidak diizinkan. Hanya admin yang dapat mengakses data ini.' },
-    { status: 403 }
-  )
-}
+import { denyResponse, serverError } from '@/lib/api-admin'
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,8 +36,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data ?? [], { status: 200 })
   } catch (err) {
-    console.error('Error listing users:', err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Terjadi kesalahan server' }, { status: 500 })
+    return serverError(err, 'Error listing users:')
   }
 }
 
@@ -125,8 +118,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: 'Pengguna berhasil dibuat', userId }, { status: 201 })
   } catch (err) {
-    console.error('Error creating user:', err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Terjadi kesalahan server' }, { status: 500 })
+    return serverError(err, 'Error creating user:')
   }
 }
 
@@ -192,8 +184,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ message: 'Pengguna berhasil diperbarui' }, { status: 200 })
   } catch (err) {
-    console.error('Error updating user:', err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Terjadi kesalahan server' }, { status: 500 })
+    return serverError(err, 'Error updating user:')
   }
 }
 
@@ -255,7 +246,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ message: 'Pengguna berhasil dihapus' }, { status: 200 })
   } catch (err) {
-    console.error('Error deleting user:', err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Terjadi kesalahan server' }, { status: 500 })
+    return serverError(err, 'Error deleting user:')
   }
 }

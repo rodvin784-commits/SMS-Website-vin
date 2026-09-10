@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
+import { useFeedback } from '@/hooks/useFeedback'
 
 interface GuruPengampu {
   guru_id: string
@@ -42,14 +43,9 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
   const [detailItem, setDetailItem] = useState<MataPelajaranData | null>(null)
   const [editingItem, setEditingItem] = useState<MataPelajaranData | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  // Auto-dismiss feedback
-  useEffect(() => {
-    if (!feedback) return
-    const timer = setTimeout(() => setFeedback(null), 4000)
-    return () => clearTimeout(timer)
-  }, [feedback])
+  // Feedback level halaman (auto-dismiss)
+  const { feedback, showFeedback, setFeedback } = useFeedback()
 
   // Refresh trigger: naikkan angka untuk memuat ulang data (dipakai setelah mutasi)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -82,7 +78,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       })
 
     return () => { cancelled = true }
-  }, [refreshKey])
+  }, [refreshKey, setFeedback])
 
   // Penugasan state (inside detail modal)
   type PenugasanItem = {
@@ -113,7 +109,8 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
   const [editingMateriId, setEditingMateriId] = useState<string | null>(null)
   const [materiDraft, setMateriDraft] = useState('')
   const [semesterDraft, setSemesterDraft] = useState('ganjil')
-  const [detailFeedback, setDetailFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  // Feedback level modal detail (terpisah agar tidak saling mengganggu)
+  const { feedback: detailFeedback, showFeedback: showDetailFeedback, setFeedback: setDetailFeedback } = useFeedback()
 
   // Fetch penugasan data for a subject
   const fetchPenugasan = useCallback(async (mapelId: string) => {
@@ -163,7 +160,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
     } finally {
       setPenugasanLoading(false)
     }
-  }, [])
+  }, [setDetailFeedback])
 
   // Add penugasan
   const handleAddPenugasan = useCallback(async (mapelId: string) => {
@@ -184,18 +181,18 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Gagal menambahkan penugasan')
 
-      setDetailFeedback({ type: 'success', message: result.message || 'Penugasan berhasil ditambahkan' })
+      showDetailFeedback('success', result.message || 'Penugasan berhasil ditambahkan')
       setNewGuruId('')
       setNewKelasId('')
       setNewMateri('')
       await fetchPenugasan(mapelId)
       await refreshData() // refresh table data too
     } catch (err) {
-      setDetailFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showDetailFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
       setAddingPenugasan(false)
     }
-  }, [newGuruId, newKelasId, newMateri, newSemester, fetchPenugasan, refreshData])
+  }, [newGuruId, newKelasId, newMateri, newSemester, fetchPenugasan, refreshData, showDetailFeedback, setDetailFeedback])
 
   // Delete penugasan
   const handleDeletePenugasan = useCallback(async (mapelId: string, assignmentId: string) => {
@@ -210,13 +207,13 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Gagal menghapus penugasan')
 
-      setDetailFeedback({ type: 'success', message: 'Penugasan berhasil dihapus' })
+      showDetailFeedback('success', 'Penugasan berhasil dihapus')
       await fetchPenugasan(mapelId)
       await refreshData()
     } catch (err) {
-      setDetailFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showDetailFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     }
-  }, [fetchPenugasan, refreshData])
+  }, [fetchPenugasan, refreshData, showDetailFeedback, setDetailFeedback])
 
   // Edit materi penugasan
   const startEditMateri = (assignment: PenugasanItem) => {
@@ -239,15 +236,15 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Gagal memperbarui materi')
 
-      setDetailFeedback({ type: 'success', message: result.message || 'Pembaruan berhasil disimpan' })
+      showDetailFeedback('success', result.message || 'Pembaruan berhasil disimpan')
       setEditingMateriId(null)
       setMateriDraft('')
       await fetchPenugasan(mapelId)
       await refreshData()
     } catch (err) {
-      setDetailFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showDetailFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     }
-  }, [editingMateriId, materiDraft, semesterDraft, fetchPenugasan, refreshData])
+  }, [editingMateriId, materiDraft, semesterDraft, fetchPenugasan, refreshData, showDetailFeedback, setDetailFeedback])
 
   // Filter data
   const filteredData = data
@@ -289,7 +286,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
     setDetailItem({ ...item, guru_pengampu: item.guru_pengampu ?? [], kelas_list: item.kelas_list ?? [] })
     setIsDetailModalOpen(true)
     fetchPenugasan(item.id)
-  }, [fetchPenugasan])
+  }, [fetchPenugasan, setDetailFeedback])
 
   // Create handler
   const handleCreate = useCallback(async (formData: { kode: string; nama: string; deskripsi?: string }) => {
@@ -309,7 +306,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
         throw new Error(result.error || 'Gagal menambahkan mata pelajaran')
       }
 
-      setFeedback({ type: 'success', message: 'Mata pelajaran berhasil ditambahkan!' })
+      showFeedback('success', 'Mata pelajaran berhasil ditambahkan!')
       setIsCreateModalOpen(false)
       await refreshData()
 
@@ -318,11 +315,11 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
         openDetail(result as MataPelajaranData)
       }, 300)
     } catch (err) {
-      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
       setSubmitting(false)
     }
-  }, [refreshData, openDetail])
+  }, [refreshData, openDetail, showFeedback, setFeedback])
 
   // Update handler
   const handleUpdate = useCallback(async (id: string, formData: { kode?: string; nama?: string; deskripsi?: string | null; status?: boolean }) => {
@@ -342,16 +339,16 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
         throw new Error(result.error || 'Gagal memperbarui mata pelajaran')
       }
 
-      setFeedback({ type: 'success', message: 'Mata pelajaran berhasil diperbarui!' })
+      showFeedback('success', 'Mata pelajaran berhasil diperbarui!')
       setIsEditModalOpen(false)
       setEditingItem(null)
       refreshData()
     } catch (err) {
-      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     } finally {
       setSubmitting(false)
     }
-  }, [refreshData])
+  }, [refreshData, showFeedback, setFeedback])
 
   // Nonaktifkan / Hapus handler
   const handleNonaktifkan = useCallback(async (item: MataPelajaranData) => {
@@ -376,12 +373,12 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
         throw new Error(result.error || 'Gagal memproses mata pelajaran')
       }
 
-      setFeedback({ type: 'success', message: result.message || 'Berhasil diproses' })
+      showFeedback('success', result.message || 'Berhasil diproses')
       refreshData()
     } catch (err) {
-      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Terjadi kesalahan' })
+      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     }
-  }, [refreshData])
+  }, [refreshData, showFeedback, setFeedback])
 
   // Format tanggal
   const formatDate = (dateStr: string) => {

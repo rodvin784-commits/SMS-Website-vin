@@ -3,15 +3,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { UserPlus, Users, Search, Filter, RefreshCw } from 'lucide-react'
 import { FeedbackMessage, Button } from '@/components/ui'
+import { useFeedback } from '@/hooks/useFeedback'
 import { UserTable, CreateUserModal, EditUserModal } from '@/components/admin'
 import type { Profile } from '@/components/admin/UserTable'
 
 type RoleFilter = 'guru' | 'siswa' | 'semua'
-
-interface FeedbackState {
-  type: 'success' | 'error'
-  message: string
-}
 
 interface UserStats {
   total: number
@@ -62,12 +58,8 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('semua')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
-  // Feedback State
-  const [feedback, setFeedback] = useState<FeedbackState>({ type: 'success', message: '' })
-  const showFeedback = useCallback((type: 'success' | 'error', message: string, duration = 4000) => {
-    setFeedback({ type, message })
-    setTimeout(() => setFeedback({ type: 'success', message: '' }), duration)
-  }, [])
+  // Feedback State (auto-dismiss)
+  const { feedback, showFeedback } = useFeedback()
 
   // Modal States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -388,7 +380,7 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Feedback Message */}
-      {feedback.message && (
+      {feedback && (
         <FeedbackMessage type={feedback.type} message={feedback.message} />
       )}
 

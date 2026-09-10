@@ -1,13 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { adminCheck, getSupabaseAdmin } from '@/lib/supabase-server'
-
-function denyResponse() {
-  return NextResponse.json(
-    { error: 'Tidak diizinkan. Hanya admin yang dapat mengakses data ini.' },
-    { status: 403 }
-  )
-}
+import { denyResponse, serverError } from '@/lib/api-admin'
 
 // Embed to-one PostgREST bisa berupa object atau array tergantung deteksi relasi
 type JurusanEmbed =
@@ -101,11 +95,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(formattedData, { status: 200 })
   } catch (err) {
-    console.error('Error listing kelas:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error listing kelas:')
   }
 }
 
@@ -189,11 +179,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result, { status: 201 })
   } catch (err) {
-    console.error('Error creating kelas:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error creating kelas:')
   }
 }
 
@@ -285,11 +271,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(data, { status: 200 })
   } catch (err) {
-    console.error('Error updating kelas:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error updating kelas:')
   }
 }
 
@@ -339,10 +321,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ message: 'Kelas berhasil dihapus' }, { status: 200 })
   } catch (err) {
-    console.error('Error deleting kelas:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
-      { status: 500 }
-    )
+    return serverError(err, 'Error deleting kelas:')
   }
 }
