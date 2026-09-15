@@ -94,7 +94,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran' },
     { href: '/admin/jurusan', icon: Building2, label: 'Data Jurusan' },
     { href: '/admin/kelas', icon: GraduationCap, label: 'Data Kelas' },
-    { href: '#', icon: Calendar, label: 'Jadwal Pelajaran' },
+    { href: '/admin/jadwal', icon: Calendar, label: 'Jadwal Pelajaran' },
   ]
 
   return (
