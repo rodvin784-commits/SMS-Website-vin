@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatCard } from '@/components/ui/StatCard'
-import { BookOpen, GraduationCap, Calendar, ClipboardList, FileText, LayoutDashboard, UserCheck } from 'lucide-react'
+import { BookOpen, GraduationCap, Calendar, ClipboardList, FileText, LayoutDashboard, UserCheck, Video } from 'lucide-react'
 import { SubjectGroup } from '@/components/teacher'
 
 type GuruAssignment = {
@@ -31,6 +31,7 @@ type MapelGroup = {
 const navItems = [
   { href: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/teacher/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran' },
+  { href: '/teacher/materi', icon: Video, label: 'Materi & Video' },
   { href: '/teacher/presensi', icon: ClipboardList, label: 'Presensi Siswa' },
   { href: '/teacher/jadwal', icon: Calendar, label: 'Jadwal Mengajar' },
   { href: '/teacher/nilai', icon: FileText, label: 'Nilai Siswa' },
@@ -187,6 +188,12 @@ export default function TeacherDashboard() {
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Dashboard Guru</h1>
           <p className="text-sm text-gray-500 mt-1">Selamat datang kembali, {teacherName}.</p>
+          {waliKelas && (
+            <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-xs font-bold text-emerald-700">
+              <UserCheck className="h-3.5 w-3.5" />
+              Wali Kelas {waliKelas.tingkat} {waliKelas.nama_kelas}
+            </div>
+          )}
         </div>
 
         {/* Grid Statistik */}

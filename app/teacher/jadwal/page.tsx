@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
-import { BookOpen, Calendar, ClipboardList, FileText, LayoutDashboard } from 'lucide-react'
+import { BookOpen, Calendar, ClipboardList, FileText, LayoutDashboard, Video } from 'lucide-react'
 import { JadwalMengajar } from '@/components/teacher'
 
 const navItems = [
   { href: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/teacher/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran' },
+  { href: '/teacher/materi', icon: Video, label: 'Materi & Video' },
   { href: '/teacher/presensi', icon: ClipboardList, label: 'Presensi Siswa' },
   { href: '/teacher/jadwal', icon: Calendar, label: 'Jadwal Mengajar' },
   { href: '/teacher/nilai', icon: FileText, label: 'Nilai Siswa' },

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { BookOpen, Calendar, ClipboardList, FileText, LayoutDashboard, Video } from 'lucide-react'
-import { NilaiManager } from '@/components/teacher'
+import { MateriAjarManager } from '@/components/teacher'
 
 const navItems = [
   { href: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -16,7 +16,7 @@ const navItems = [
   { href: '/teacher/nilai', icon: FileText, label: 'Nilai Siswa' },
 ]
 
-export default function TeacherNilaiPage() {
+export default function TeacherMateriPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [teacherName, setTeacherName] = useState('Guru')
@@ -88,13 +88,13 @@ export default function TeacherNilaiPage() {
     >
       <div className="max-w-5xl mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Nilai Siswa</h1>
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Materi & Video Pembelajaran</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Input nilai per komponen (Ulangan Harian, Tugas, UTS, UAS) dan lihat perhitungan rapor.
+            Tambahkan ringkasan materi, tautan video (YouTube/Drive), dan dokumen untuk siswa. Bisa diedit atau dihapus kapan saja.
           </p>
         </div>
 
-        <NilaiManager />
+        <MateriAjarManager />
       </div>
     </AppShell>
   )

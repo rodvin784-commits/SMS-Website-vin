@@ -27,7 +27,8 @@ app/
 │       ├── mengajar/route.ts
 │       ├── jadwal/route.ts
 │       ├── presensi/route.ts
-│       └── nilai/route.ts
+│       ├── nilai/route.ts
+│       └── materi/route.ts
 ├── admin/                      # Halaman panel admin
 │   ├── dashboard/              # Dashboard dinamis (statistik + chart + aktivitas)
 │   ├── users/                  # Manajemen pengguna (guru & siswa)
@@ -38,13 +39,14 @@ app/
 └── teacher/
     ├── dashboard/              # Dashboard guru (mapel & kelas diampu + statistik)
     ├── mata-pelajaran/         # Mata pelajaran & kelas yang diampu
+    ├── materi/                 # Materi & video pembelajaran (tambah/edit/hapus)
     ├── presensi/               # Pengisian presensi siswa per pertemuan
     ├── jadwal/                 # Jadwal mengajar mingguan (Senin–Sabtu)
     └── nilai/                  # Input nilai & perhitungan rapor
 
 components/
 ├── admin/                      # UI modul admin (manager + modal)
-├── teacher/                    # UI modul guru (PresensiManager, SubjectGroup, dst)
+├── teacher/                    # UI modul guru (PresensiManager, MateriAjarManager, SubjectGroup, dst)
 ├── layout/AppShell.tsx         # Kerangka sidebar + header (auto highlight nav)
 └── ui/                         # Komponen kecil (StatCard, dst)
 
@@ -71,6 +73,7 @@ proxy.ts                        # Middleware auth: lindungi /admin/* dan /teache
 | `jadwal_pelajaran` | Pertemuan mingguan: guru_mengajar_id + hari (1–6) + jam mulai/selesai + ruangan |
 | `presensi` | Kehadiran siswa per (guru_mengajar_id, tanggal, siswa_id) |
 | `nilai` | Nilai siswa per komponen (harian/tugas/uts/uas) di (guru_mengajar_id, siswa_id) |
+| `materi_kelas` | Materi & video pembelajaran per penugasan (judul, deskripsi, video_url, materi_url) |
 
 ### Relasi
 
@@ -112,6 +115,7 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 | `20260915_add_wali_kelas.sql` | Kolom `wali_kelas_id` di kelas + unique index (satu guru satu wali) |
 | `20260915_create_presensi.sql` | Tabel `presensi` + trigger updated_at |
 | `20260915_create_nilai.sql` | Tabel `nilai` (komponen harian/tugas/uts/uas) |
+| `20260915_create_materi_kelas.sql` | Tabel `materi_kelas` (materi & video pembelajaran guru) |
 
 ## Routes
 
@@ -135,6 +139,7 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 | `/teacher/presensi` | Pilih penugasan + tanggal → isi kehadiran per siswa → simpan |
 | `/teacher/jadwal` | Papan jadwal mengajar mingguan (Senin–Sabtu, hari ini ditandai) |
 | `/teacher/nilai` | Input nilai per komponen (Harian/Tugas/UTS/UAS) + tab Rapor (rata-rata & predikat) |
+| `/teacher/materi` | Materi & video pembelajaran: tambah, edit, hapus (deskripsi + tautan video/dokumen) |
 
 ### Auth
 
@@ -165,6 +170,10 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 | `/api/teacher/jadwal` | GET | Jadwal mingguan milik guru (hari, jam, ruangan, mapel, kelas) |
 | `/api/teacher/nilai` | GET | Roster siswa + nilai 4 komponen pada satu penugasan |
 | `/api/teacher/nilai` | POST | Upsert nilai per (penugasan, siswa, komponen); kosongkan nilai = hapus |
+| `/api/teacher/materi` | GET | Daftar materi milik guru + info mapel/kelas per penugasan |
+| `/api/teacher/materi` | POST | Tambah materi (judul wajib; minimal salah satu: deskripsi/video/dokumen; URL divalidasi) |
+| `/api/teacher/materi` | PUT | Edit materi milik sendiri (judul, deskripsi, video, dokumen, status tampil/draf) |
+| `/api/teacher/materi` | DELETE | Hapus materi milik sendiri (cek kepemilikan lewat penugasan) |
 
 ## Keamanan & Pola Kode
 
@@ -235,6 +244,13 @@ Prasyarat: guru harus sudah memiliki penugasan mengajar dari admin (lihat **Alur
 3. Kosongkan kolom nilai untuk menghapus baris nilai tsb
 4. Tab **Rapor**: rata-rata komponen + predikat huruf (A/B/C/D/E) per siswa + rata-rata kelas
 
+### Materi & Video Pembelajaran
+
+1. Guru membuka **Materi & Video** (`/teacher/materi`) → klik **Tambah Materi**
+2. Pilih mapel & kelas (dari penugasan miliknya), isi judul, lalu minimal salah satu: deskripsi/ringkasan, URL video (YouTube/Drive), atau URL dokumen
+3. Materi tampil sebagai kartu dengan tombol akses video & dokumen; status bisa **Tampil** (terlihat siswa) atau **Draf** (disembunyikan)
+4. Edit via ikon pensil, hapus via ikon tempat sampah (dengan konfirmasi) — hanya materi milik sendiri yang bisa diubah
+
 ## Running
 
 ```bash
@@ -249,3 +265,34 @@ Buka http://localhost:3000/admin (login sebagai admin) atau http://localhost:300
 - Gunakan branch `feat/...` untuk pengembangan fitur.
 - Role yang tersedia: `admin`, `guru`, `siswa`.
 - Lint & typecheck: `npm run lint` dan `npx tsc --noEmit`.
+
+## Riwayat Pembaruan
+
+### 2026-09-15 — Fitur Materi & Video Pembelajaran (Guru)
+
+**Fitur baru:**
+
+- Menu **Materi & Video** di panel guru (`/teacher/materi`): guru dapat menambah, mengedit, dan menghapus materi per penugasan (mapel + kelas + semester).
+- Satu materi terdiri dari judul + minimal salah satu: deskripsi/ringkasan, URL video (YouTube/Drive), atau URL dokumen.
+- Status materi: **Tampil** (terlihat siswa) atau **Draf** (disembunyikan) — diatur saat edit.
+- Badge **Wali Kelas** di header Dashboard Guru (di bawah sambutan).
+
+**File baru:**
+
+| File | Isi |
+|---|---|
+| `app/teacher/materi/page.tsx` | Halaman Materi & Video di panel guru (auth check + AppShell) |
+| `components/teacher/MateriAjarManager.tsx` | UI kartu materi: modal tambah/edit, konfirmasi hapus, tombol akses video & dokumen |
+| `app/api/teacher/materi/route.ts` | API CRUD materi (GET/POST/PUT/DELETE) dengan verifikasi kepemilikan penugasan & validasi URL |
+| `supabase/migrations/20260915_create_materi_kelas.sql` | Tabel `materi_kelas` + index + trigger `updated_at` + RLS (SELECT authenticated) |
+
+**Perubahan pada file lama:**
+
+- Semua halaman guru (`dashboard`, `mata-pelajaran`, `presensi`, `jadwal`, `nilai`): nav sidebar kini menyertakan entri **Materi & Video**.
+- `components/teacher/index.ts`: ekspor baru `MateriAjarManager`.
+- `app/teacher/dashboard/page.tsx`: badge wali kelas di header.
+
+**Catatan deploy:**
+
+- Jalankan `supabase/migrations/20260915_create_materi_kelas.sql` di Supabase SQL Editor sebelum memakai fitur ini.
+- Siswa nantinya membaca materi lewat API siswa (READ saja) — belum tersedia pada pembaruan ini.
