@@ -1,2 +1,5 @@
 export { AssignmentCard } from './AssignmentCard'
 export { SubjectGroup } from './SubjectGroup'
+export { PresensiManager } from './PresensiManager'
+export { JadwalMengajar } from './JadwalMengajar'
+export { NilaiManager } from './NilaiManager'
