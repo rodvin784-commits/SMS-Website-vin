@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { Logo, IconInput, Button, FeedbackMessage } from '@/components/ui'
 
@@ -53,9 +54,12 @@ export default function LoginPage() {
       } else if (role === 'guru') {
         router.push('/teacher/dashboard')
         return
+      } else if (role === 'siswa') {
+        router.push('/siswa/dashboard')
+        return
       } else {
         await supabase.auth.signOut()
-        throw new Error('Akses ditolak. Akun Anda tidak memiliki hak akses sebagai admin atau guru.')
+        throw new Error('Akses ditolak. Akun Anda tidak memiliki hak akses.')
       }
 
     } catch (err) {
@@ -72,7 +76,14 @@ export default function LoginPage() {
       <div className="flex w-full max-w-7xl min-h-[680px] overflow-hidden rounded-3xl bg-white shadow-2xl">
         {/* Sisi Kiri: Ilustrasi */}
         <div className="hidden lg:flex lg:w-1/2 relative bg-gray-900 overflow-hidden">
-          <Logo src="/gambar2.png" alt="Ilustrasi Belajar" size={1200} />
+          <Image
+            src="/gambar2.png"
+            alt="Ilustrasi Belajar"
+            fill
+            priority
+            sizes="50vw"
+            className="object-cover"
+          />
         </div>
 
         {/* Sisi Kanan: Form Login */}

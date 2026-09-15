@@ -39,8 +39,13 @@ export default async function proxy(request: NextRequest) {
     console.error('Proxy session error:', sessionError.message)
   }
 
-  // Jika belum login dan mencoba masuk ke halaman admin atau teacher, lempar ke login
-  if (!user && (url.pathname.startsWith('/admin') || url.pathname.startsWith('/teacher'))) {
+  // Jika belum login dan mencoba masuk ke halaman admin, teacher, atau siswa, lempar ke login
+  if (
+    !user &&
+    (url.pathname.startsWith('/admin') ||
+      url.pathname.startsWith('/teacher') ||
+      url.pathname.startsWith('/siswa'))
+  ) {
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
@@ -49,5 +54,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/teacher/:path*'],
+  matcher: ['/admin/:path*', '/teacher/:path*', '/siswa/:path*'],
 }

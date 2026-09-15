@@ -18,7 +18,7 @@ type NavItem = {
   label: string
 }
 
-type UserRole = 'admin' | 'teacher'
+type UserRole = 'admin' | 'teacher' | 'siswa'
 
 interface AppShellProps {
   role: UserRole
@@ -42,6 +42,8 @@ export function AppShell({
   const pathname = usePathname()
 
   const isAdmin = role === 'admin'
+  const panelLabel =
+    role === 'admin' ? 'Admin Panel' : role === 'teacher' ? 'Panel Guru' : 'Portal Siswa'
   const defaultLogoIcon = isAdmin ? (
     <ShieldCheck className="h-6 w-6 text-blue-400" />
   ) : (
@@ -61,7 +63,7 @@ export function AppShell({
           <div className="flex items-center space-x-2">
             {logoIcon || defaultLogoIcon}
             <span className="font-bold text-lg tracking-wide">
-              {isAdmin ? 'Admin Panel' : 'Panel Guru'}
+              {panelLabel}
             </span>
           </div>
           <button
