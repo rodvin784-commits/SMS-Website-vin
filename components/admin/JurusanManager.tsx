@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Plus, Pencil, Trash2, GraduationCap, Search, CheckCircle2, Filter, Building2 } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Pencil, Trash2, GraduationCap, Search, CheckCircle2, Filter, Building2, ArrowRight } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -11,7 +12,7 @@ import { useFeedback } from '@/hooks/useFeedback'
 interface JurusanData {
   id: string
   kode: string
-  nama_jurusan: string
+  nama: string
   status: boolean
   created_at: string
   jumlah_kelas?: number
@@ -76,7 +77,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
     .filter((item) => {
       const matchesSearch =
         item.kode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.nama_jurusan.toLowerCase().includes(searchQuery.toLowerCase())
+        item.nama.toLowerCase().includes(searchQuery.toLowerCase())
       let matchesStatus = true
       if (statusFilter === 'active') matchesStatus = item.status === true
       if (statusFilter === 'inactive') matchesStatus = item.status === false
@@ -84,7 +85,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
     })
 
   // Create handler
-  const handleCreate = useCallback(async (formData: { kode: string; nama_jurusan: string }) => {
+  const handleCreate = useCallback(async (formData: { kode: string; nama: string }) => {
     setSubmitting(true)
     setFeedback(null)
 
@@ -112,7 +113,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
   }, [refreshData, showFeedback, setFeedback])
 
   // Update handler
-  const handleUpdate = useCallback(async (id: string, formData: { kode?: string; nama_jurusan?: string; status?: boolean }) => {
+  const handleUpdate = useCallback(async (id: string, formData: { kode?: string; nama?: string; status?: boolean }) => {
     setSubmitting(true)
     setFeedback(null)
 
@@ -302,12 +303,17 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
                 {filteredData.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group">
                     <td className="py-4 px-6 font-bold text-amber-600 text-sm">{item.kode}</td>
-                    <td className="py-4 px-6 font-semibold text-gray-900">{item.nama_jurusan}</td>
+                    <td className="py-4 px-6 font-semibold text-gray-900">{item.nama}</td>
                     <td className="py-4 px-6">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700">
+                      <Link
+                        href={`/admin/kelas?jurusan_id=${item.id}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                        title="Lihat kelas di jurusan ini"
+                      >
                         <Building2 className="h-3.5 w-3.5" />
                         {item.jumlah_kelas ?? 0} kelas
-                      </span>
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
                     </td>
                     <td className="py-4 px-6">
                       <span
@@ -359,7 +365,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
           const formData = new FormData(e.currentTarget)
           handleCreate({
             kode: formData.get('kode') as string,
-            nama_jurusan: formData.get('nama_jurusan') as string,
+            nama: formData.get('nama') as string,
           })
         }} className="space-y-4 pt-2">
           <div className="space-y-1.5">
@@ -382,7 +388,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
             </label>
             <Input
               type="text"
-              name="nama_jurusan"
+              name="nama"
               placeholder="Contoh: Akuntansi & Keuangan Lembaga"
               required
             />
@@ -407,7 +413,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
             const formData = new FormData(e.currentTarget)
             handleUpdate(editingItem.id, {
               kode: formData.get('kode') as string || undefined,
-              nama_jurusan: formData.get('nama_jurusan') as string || undefined,
+              nama: formData.get('nama') as string || undefined,
               status: formData.get('status') === 'on' || formData.get('status') === 'true',
             })
           }} className="space-y-4 pt-2">
@@ -418,7 +424,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
                 </div>
                 <div>
                   <p className="font-bold text-gray-900">{editingItem.kode}</p>
-                  <p className="text-xs text-gray-500">{editingItem.nama_jurusan}</p>
+                  <p className="text-xs text-gray-500">{editingItem.nama}</p>
                 </div>
               </div>
             </div>
@@ -432,6 +438,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
                 name="kode"
                 defaultValue={editingItem.kode}
                 placeholder="Kode jurusan"
+                maxLength={10}
               />
             </div>
 
@@ -441,8 +448,8 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
               </label>
               <Input
                 type="text"
-                name="nama_jurusan"
-                defaultValue={editingItem.nama_jurusan}
+                name="nama"
+                defaultValue={editingItem.nama}
                 placeholder="Nama jurusan"
               />
             </div>

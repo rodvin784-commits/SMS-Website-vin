@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('jurusan')
-      .select('id, nama_jurusan, kode, status, created_at, kelas(id)')
-      .order('nama_jurusan', { ascending: true })
+      .select('id, nama, kode, status, created_at, kelas(id)')
+      .order('nama', { ascending: true })
 
     if (status === 'active') {
       query = query.eq('status', true)
@@ -33,10 +33,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Sertakan jumlah kelas yang terhubung ke jurusan (semua status)
-    const result = ((data ?? []) as Array<{ id: string; nama_jurusan: string; kode: string; status: boolean; created_at: string; kelas: Array<{ id: string }> | null }>).map(
+    const result = ((data ?? []) as Array<{ id: string; nama: string; kode: string; status: boolean; created_at: string; kelas: Array<{ id: string }> | null }>).map(
       (j) => ({
         id: j.id,
-        nama_jurusan: j.nama_jurusan,
+        nama: j.nama,
         kode: j.kode,
         status: j.status,
         created_at: j.created_at,
@@ -60,10 +60,10 @@ export async function POST(request: Request) {
 
     const supabaseAdmin = getSupabaseAdmin()
     const body = await request.json()
-    const { nama_jurusan, kode } = body
+    const { nama, kode } = body
 
     // Validasi input
-    if (!nama_jurusan || nama_jurusan.trim() === '') {
+    if (!nama || nama.trim() === '') {
       return NextResponse.json({ error: 'Nama jurusan wajib diisi' }, { status: 400 })
     }
 
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     const { data: existingName, error: checkNameError } = await supabaseAdmin
       .from('jurusan')
       .select('id')
-      .eq('nama_jurusan', nama_jurusan.trim())
+      .eq('nama', nama.trim())
       .maybeSingle()
 
     if (checkNameError) {
@@ -106,10 +106,10 @@ export async function POST(request: Request) {
       .from('jurusan')
       .insert({
         kode: kode.trim().toUpperCase(),
-        nama_jurusan: nama_jurusan.trim(),
+        nama: nama.trim(),
         status: true,
       })
-      .select('id, kode, nama_jurusan, status, created_at')
+      .select('id, kode, nama, status, created_at')
       .single()
 
     if (insertError) {
@@ -132,13 +132,13 @@ export async function PUT(request: Request) {
 
     const supabaseAdmin = getSupabaseAdmin()
     const body = await request.json()
-    const { id, nama_jurusan, kode, status } = body
+    const { id, nama, kode, status } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID jurusan wajib diisi' }, { status: 400 })
     }
 
-    const updates: { kode?: string; nama_jurusan?: string; status?: boolean } = {}
+    const updates: { kode?: string; nama?: string; status?: boolean } = {}
 
     if (kode !== undefined && kode.trim() !== '') {
       const { data: existing, error: checkError } = await supabaseAdmin
@@ -159,11 +159,11 @@ export async function PUT(request: Request) {
       updates.kode = kode.trim().toUpperCase()
     }
 
-    if (nama_jurusan !== undefined && nama_jurusan.trim() !== '') {
+    if (nama !== undefined && nama.trim() !== '') {
       const { data: existingName, error: checkNameError } = await supabaseAdmin
         .from('jurusan')
         .select('id')
-        .eq('nama_jurusan', nama_jurusan.trim())
+        .eq('nama', nama.trim())
         .neq('id', id)
         .maybeSingle()
 
@@ -175,7 +175,7 @@ export async function PUT(request: Request) {
         return NextResponse.json({ error: 'Nama jurusan sudah digunakan' }, { status: 400 })
       }
 
-      updates.nama_jurusan = nama_jurusan.trim()
+      updates.nama = nama.trim()
     }
 
     if (status !== undefined) {
@@ -186,7 +186,7 @@ export async function PUT(request: Request) {
       .from('jurusan')
       .update(updates)
       .eq('id', id)
-      .select('id, kode, nama_jurusan, status, created_at')
+      .select('id, kode, nama, status, created_at')
       .single()
 
     if (error) {
