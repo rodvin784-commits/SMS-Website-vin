@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('profiles')
-      .select('*')
+      .select('*, kelas:kelas!kelas_id(nama_kelas, tingkat)')
       .neq('role', 'admin') // Exclude admin accounts from listing
       .order('created_at', { ascending: false })
 
@@ -34,10 +34,55 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    return NextResponse.json(data ?? [], { status: 200 })
+    // Sertakan kelas_id & kelas_nama (embed to-one PostgREST bisa object atau array)
+    const rows = (data ?? []) as Array<{
+      id: string
+      email: string
+      nama_lengkap: string | null
+      role: string
+      status: boolean
+      created_at: string
+      kelas_id: string | null
+      kelas: { nama_kelas: string; tingkat: number } | { nama_kelas: string; tingkat: number }[] | null
+    }>
+
+    const result = rows.map((r) => {
+      const kelasRow = Array.isArray(r.kelas) ? r.kelas[0] : r.kelas
+      return {
+        id: r.id,
+        email: r.email,
+        nama_lengkap: r.nama_lengkap,
+        role: r.role,
+        status: r.status,
+        created_at: r.created_at,
+        kelas_id: r.kelas_id ?? null,
+        kelas_nama: kelasRow ? `Kelas ${kelasRow.tingkat} ${kelasRow.nama_kelas}` : null,
+      }
+    })
+
+    return NextResponse.json(result, { status: 200 })
   } catch (err) {
     return serverError(err, 'Error listing users:')
   }
+}
+
+// Validasi kelas_id (wajib ada, status aktif, tingkat 10-12). Balikan null bila tidak valid/ tidak dikirim.
+async function validKelasId(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
+  kelasId: string | null | undefined
+): Promise<string | null> {
+  if (!kelasId) return null
+
+  const { data: kelasRow } = await supabaseAdmin
+    .from('kelas')
+    .select('id')
+    .eq('id', kelasId)
+    .eq('status', true)
+    .gte('tingkat', 10)
+    .lte('tingkat', 12)
+    .maybeSingle()
+
+  return kelasRow?.id ?? null
 }
 
 export async function POST(request: Request) {
@@ -48,7 +93,7 @@ export async function POST(request: Request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin()
-    const { email, password, nama_lengkap, role } = await request.json()
+    const { email, password, nama_lengkap, role, kelas_id } = await request.json()
 
     // Validasi input
     if (!email || !password) {
@@ -99,6 +144,9 @@ export async function POST(request: Request) {
 
     const userId = authData.user.id
 
+    // Validasi kelas (hanya untuk siswa). Guru/admin otomatis tanpa kelas.
+    const resolvedKelasId = await validKelasId(supabaseAdmin, role === 'siswa' ? (kelas_id ?? null) : null)
+
     // 2. Masukkan data profil ke tabel profiles
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
@@ -107,7 +155,8 @@ export async function POST(request: Request) {
         email,
         nama_lengkap: nama_lengkap.trim(),
         role,
-        status: true
+        status: true,
+        kelas_id: resolvedKelasId,
       })
 
     if (profileError) {
@@ -130,7 +179,7 @@ export async function PUT(request: Request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin()
-    const { id, email, password, nama_lengkap, role, status } = await request.json()
+    const { id, email, password, nama_lengkap, role, status, kelas_id } = await request.json()
 
     if (!id) {
       return NextResponse.json({ error: 'ID pengguna wajib diisi' }, { status: 400 })
@@ -166,12 +215,22 @@ export async function PUT(request: Request) {
     }
 
     // 2. Update data profil
-    const profileUpdates: { nama_lengkap?: string; role?: string; status?: boolean; email?: string } = {}
+    const profileUpdates: { nama_lengkap?: string; role?: string; status?: boolean; email?: string; kelas_id?: string | null } = {}
 
     if (nama_lengkap !== undefined) profileUpdates.nama_lengkap = nama_lengkap.trim()
     if (role !== undefined) profileUpdates.role = role
     if (status !== undefined) profileUpdates.status = status
     if (email !== undefined) profileUpdates.email = email
+
+    // Relasi kelas: untuk siswa set sesuai pilihan (null = belum di kelas), untuk guru/admin selalu null
+    if (kelas_id !== undefined) {
+      let targetRole = role
+      if (!targetRole) {
+        const { data: existing } = await supabaseAdmin.from('profiles').select('role').eq('id', id).maybeSingle()
+        targetRole = existing?.role
+      }
+      profileUpdates.kelas_id = targetRole === 'siswa' ? await validKelasId(supabaseAdmin, kelas_id ?? null) : null
+    }
 
     const { error: profileError } = await supabaseAdmin
       .from('profiles')

@@ -154,6 +154,7 @@ export default function AdminUsersPage() {
     email: string
     password: string
     role: 'guru' | 'siswa'
+    kelas_id: string
   }) => {
     if (!data.email || !data.password || !data.nama_lengkap) {
       showFeedback('error', 'Semua field wajib diisi!')
@@ -174,6 +175,7 @@ export default function AdminUsersPage() {
           email: data.email,
           password: data.password,
           role: data.role,
+          kelas_id: data.role === 'siswa' ? (data.kelas_id || null) : null,
         }),
       })
 
@@ -200,6 +202,7 @@ export default function AdminUsersPage() {
     role: 'guru' | 'siswa'
     status: boolean
     password?: string
+    kelas_id: string
   }) => {
     if (!data.id) {
       showFeedback('error', 'Data pengguna tidak valid!')

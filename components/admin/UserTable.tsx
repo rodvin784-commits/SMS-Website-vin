@@ -15,6 +15,8 @@ export type Profile = {
   role: string
   status: boolean
   created_at: string
+  kelas_id?: string | null
+  kelas_nama?: string | null
 }
 
 interface UserTableProps {
@@ -99,6 +101,9 @@ export function UserTable({
                 Role
               </th>
               <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Kelas
+              </th>
+              <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">
                 Status
               </th>
               <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">
@@ -138,6 +143,19 @@ export function UserTable({
                 </td>
                 <td className="py-4 px-6">
                   <RoleBadge role={user.role as 'guru' | 'siswa'} />
+                </td>
+                <td className="py-4 px-6">
+                  {user.role === 'siswa' ? (
+                    user.kelas_nama ? (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-semibold">
+                        {user.kelas_nama}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">Belum di kelas</span>
+                    )
+                  ) : (
+                    <span className="text-xs text-gray-300">—</span>
+                  )}
                 </td>
                 <td className="py-4 px-6">
                   <span

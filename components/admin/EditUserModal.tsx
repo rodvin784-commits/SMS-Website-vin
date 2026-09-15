@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, type FormEvent } from 'react'
-import { Pencil } from 'lucide-react'
+import { Pencil, GraduationCap } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
+import { useKelasOptions } from '@/hooks/useKelasOptions'
 import type { Profile } from '@/components/admin/UserTable'
 
 interface EditUserFormData {
@@ -14,6 +15,7 @@ interface EditUserFormData {
   role: 'guru' | 'siswa'
   status: boolean
   password?: string
+  kelas_id: string
 }
 
 interface EditUserModalProps {
@@ -37,8 +39,11 @@ export function EditUserModal({
     email: '',
     role: 'guru',
     status: true,
+    kelas_id: '',
   })
   const [newPassword, setNewPassword] = useState('')
+
+  const { kelasOptions, loading: loadingKelas } = useKelasOptions(isOpen && !!user)
 
   // Reset form when user changes
   useEffect(() => {
@@ -49,6 +54,7 @@ export function EditUserModal({
         email: user.email || '',
         role: (user.role as 'guru' | 'siswa') || 'guru',
         status: user.status !== false,
+        kelas_id: user.kelas_id || '',
       })
       setNewPassword('')
     })
@@ -152,6 +158,32 @@ export function EditUserModal({
               </svg>
             </div>
           </div>
+
+          {/* Kelas (khusus siswa) */}
+          {formData.role === 'siswa' && (
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+                Kelas <span className="text-gray-400 font-medium normal-case">(opsional)</span>
+              </label>
+              <div className="relative">
+                <select
+                  value={formData.kelas_id}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, kelas_id: e.target.value }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 cursor-pointer disabled:opacity-60"
+                  disabled={loadingKelas}
+                >
+                  <option value="">-- Pilih Kelas (opsional) --</option>
+                  {kelasOptions.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      Kelas {k.tingkat} {k.nama_kelas}
+                    </option>
+                  ))}
+                </select>
+                <GraduationCap className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+              </div>
+              {loadingKelas && <p className="text-xs text-gray-400">Memuat daftar kelas...</p>}
+            </div>
+          )}
 
           {/* Status */}
           <div className="space-y-2">

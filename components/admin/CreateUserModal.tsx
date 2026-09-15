@@ -1,16 +1,18 @@
 'use client'
 
 import { useState, useEffect, type FormEvent } from 'react'
-import { UserPlus } from 'lucide-react'
+import { UserPlus, GraduationCap } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { useKelasOptions } from '@/hooks/useKelasOptions'
 
 interface CreateUserFormData {
   nama_lengkap: string
   email: string
   password: string
   role: 'guru' | 'siswa'
+  kelas_id: string
 }
 
 interface CreateUserModalProps {
@@ -31,13 +33,16 @@ export function CreateUserModal({
     email: '',
     password: '',
     role: 'guru',
+    kelas_id: '',
   })
+
+  const { kelasOptions, loading: loadingKelas } = useKelasOptions(isOpen)
 
   // Reset form when modal opens
   useEffect(() => {
     if (!isOpen) return
     const raf = requestAnimationFrame(() => {
-      setFormData({ nama_lengkap: '', email: '', password: '', role: 'guru' })
+      setFormData({ nama_lengkap: '', email: '', password: '', role: 'guru', kelas_id: '' })
     })
     return () => cancelAnimationFrame(raf)
   }, [isOpen])
@@ -127,6 +132,7 @@ export function CreateUserModal({
                 setFormData((prev) => ({
                   ...prev,
                   role: e.target.value as 'guru' | 'siswa',
+                  kelas_id: e.target.value === 'guru' ? '' : prev.kelas_id,
                 }))
               }
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
@@ -144,6 +150,32 @@ export function CreateUserModal({
             </svg>
           </div>
         </div>
+
+        {/* Kelas (khusus siswa) */}
+        {formData.role === 'siswa' && (
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              Kelas <span className="text-gray-400 font-medium normal-case">(opsional)</span>
+            </label>
+            <div className="relative">
+              <select
+                value={formData.kelas_id}
+                onChange={(e) => setFormData((prev) => ({ ...prev, kelas_id: e.target.value }))}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 cursor-pointer disabled:opacity-60"
+                disabled={loadingKelas}
+              >
+                <option value="">-- Pilih Kelas (opsional) --</option>
+                {kelasOptions.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    Kelas {k.tingkat} {k.nama_kelas}
+                  </option>
+                ))}
+              </select>
+              <GraduationCap className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+            </div>
+            {loadingKelas && <p className="text-xs text-gray-400">Memuat daftar kelas...</p>}
+          </div>
+        )}
 
         {/* Info */}
         {formData.role === 'guru' && (
