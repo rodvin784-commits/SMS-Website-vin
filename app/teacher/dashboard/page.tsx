@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatCard } from '@/components/ui/StatCard'
-import { BookOpen, GraduationCap, Calendar, ClipboardList, LayoutDashboard } from 'lucide-react'
+import { BookOpen, GraduationCap, Calendar, ClipboardList, FileText, LayoutDashboard, UserCheck } from 'lucide-react'
 import { SubjectGroup } from '@/components/teacher'
 
 type GuruAssignment = {
@@ -30,9 +30,10 @@ type MapelGroup = {
 
 const navItems = [
   { href: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '#', icon: BookOpen, label: 'Mata Pelajaran' },
-  { href: '#', icon: ClipboardList, label: 'Presensi Siswa' },
-  { href: '#', icon: Calendar, label: 'Jadwal Mengajar' },
+  { href: '/teacher/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran' },
+  { href: '/teacher/presensi', icon: ClipboardList, label: 'Presensi Siswa' },
+  { href: '/teacher/jadwal', icon: Calendar, label: 'Jadwal Mengajar' },
+  { href: '/teacher/nilai', icon: FileText, label: 'Nilai Siswa' },
 ]
 
 export default function TeacherDashboard() {
@@ -40,6 +41,10 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true)
   const [teacherName, setTeacherName] = useState('Guru')
   const [assignments, setAssignments] = useState<GuruAssignment[]>([])
+  const [jadwalHariIni, setJadwalHariIni] = useState<string | number>('--')
+  const [presensiTerkirim, setPresensiTerkirim] = useState<string | number>('--')
+  type WaliKelasInfo = { nama_kelas: string; tingkat: number; tahun_ajaran: string; jurusan_nama: string | null }
+  const [waliKelas, setWaliKelas] = useState<WaliKelasInfo | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -96,9 +101,24 @@ export default function TeacherDashboard() {
           if (res.ok && !cancelled) {
             const data = await res.json().catch(() => null)
             setAssignments(data?.assignments ?? [])
+            setPresensiTerkirim(data?.presensi_terkirim ?? 0)
+            setWaliKelas((data?.wali_kelas ?? null) as WaliKelasInfo | null)
           }
         } catch (err) {
           console.error('Gagal memuat penugasan mengajar:', err)
+        }
+
+        // Muat jadwal untuk menghitung jumlah sesi hari ini
+        try {
+          const res = await fetch('/api/teacher/jadwal')
+          if (res.ok && !cancelled) {
+            const data = await res.json().catch(() => null)
+            const today = new Date().getDay() // 0= Minggu ... 6 = Sabtu
+            const count = (data?.jadwal ?? []).filter((e: { hari: number }) => e.hari === today).length
+            setJadwalHariIni(count)
+          }
+        } catch (err) {
+          console.error('Gagal memuat jadwal:', err)
         }
       } catch (err) {
         console.error('Auth check failed:', err)
@@ -188,14 +208,14 @@ export default function TeacherDashboard() {
           <StatCard
             icon={Calendar}
             label="Jadwal Hari Ini"
-            value="--"
+            value={jadwalHariIni}
             variant="amber"
             delay={200}
           />
           <StatCard
             icon={ClipboardList}
             label="Presensi Diperiksa"
-            value="--"
+            value={presensiTerkirim}
             variant="purple"
             delay={300}
           />
@@ -217,6 +237,31 @@ export default function TeacherDashboard() {
                 <SubjectGroup key={group.mapel_id} group={group} />
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Wali Kelas */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <h2 className="text-base font-bold text-gray-900 mb-2 flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-emerald-600" />
+            Wali Kelas
+          </h2>
+          {waliKelas ? (
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700">
+                <UserCheck className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-900">
+                  Kelas {waliKelas.tingkat} {waliKelas.nama_kelas}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {waliKelas.jurusan_nama ? `${waliKelas.jurusan_nama} · ` : ''}Tahun Ajaran {waliKelas.tahun_ajaran}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">Anda belum ditunjuk sebagai wali kelas.</p>
           )}
         </div>
       </div>

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Plus, Pencil, Trash2, GraduationCap, Filter, Search, CheckCircle2, Building2 } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { Plus, Pencil, Trash2, GraduationCap, Filter, Search, CheckCircle2, Building2, UserCheck } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -12,7 +13,7 @@ import { useFeedback } from '@/hooks/useFeedback'
 interface JurusanData {
   id: string
   kode: string
-  nama_jurusan: string
+  nama: string
   status: boolean
 }
 
@@ -22,9 +23,12 @@ interface KelasData {
   tingkat: number
   tahun_ajaran: string
   jurusan_id: string | null
-  jurusan: { id: string; kode: string; nama_jurusan: string } | null
+  jurusan: { id: string; kode: string; nama: string } | null
+  wali_kelas_id: string | null
+  wali_kelas_nama: string | null
   status: boolean
   created_at: string
+  jumlah_siswa?: number
 }
 
 interface KelasFormData {
@@ -32,6 +36,7 @@ interface KelasFormData {
   tingkat: number
   tahun_ajaran: string
   jurusan_id: string | null
+  wali_kelas_id: string | null
 }
 
 interface KelasManagerProps {
@@ -44,6 +49,9 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [tingkatFilter, setTingkatFilter] = useState<string>('all')
+  // Filter jurusan via URL (dari badge di halaman Jurusan) dan dropdown
+  const searchParams = useSearchParams()
+  const [jurusanFilter, setJurusanFilter] = useState<string>(searchParams.get('jurusan_id') ?? 'all')
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -62,6 +70,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
 
   // Refresh trigger: naikkan angka untuk memuat ulang data (dipakai setelah mutasi)
   const [refreshKey, setRefreshKey] = useState(0)
+
   const refreshData = useCallback(() => {
     setRefreshKey((k) => k + 1)
     if (onDataChanged) onDataChanged()
@@ -74,6 +83,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
     const params = new URLSearchParams()
     if (statusFilter !== 'all') params.set('status', statusFilter)
     if (tingkatFilter !== 'all') params.set('tingkat', tingkatFilter)
+    if (jurusanFilter !== 'all') params.set('jurusan_id', jurusanFilter)
     const query = params.toString()
 
     fetch(`/api/admin/kelas${query ? `?${query}` : ''}`)
@@ -96,11 +106,35 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
       })
 
     return () => { cancelled = true }
-  }, [statusFilter, tingkatFilter, refreshKey, setFeedback])
+  }, [statusFilter, tingkatFilter, jurusanFilter, refreshKey, setFeedback])
 
   // Jurusan options (sekali saat mount; fetchingJurusan awal true agar spinner tampil)
   const [jurusanOptions, setJurusanOptions] = useState<JurusanData[]>([])
   const [fetchingJurusan, setFetchingJurusan] = useState(true)
+
+  // Guru aktif untuk pilihan wali kelas
+  const [guruOptions, setGuruOptions] = useState<{ id: string; nama_lengkap: string }[]>([])
+  const [fetchingGuru, setFetchingGuru] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    fetch('/api/admin/users?role=guru&status=active')
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Gagal memuat data guru')
+        const result = await res.json()
+        const rows = (Array.isArray(result) ? result : []) as { id: string; nama_lengkap: string | null; status: boolean }[]
+        if (!cancelled) setGuruOptions(rows.filter((g) => g.status === true).map((g) => ({ id: g.id, nama_lengkap: g.nama_lengkap ?? g.id })))
+      })
+      .catch((err) => console.error('Error fetching guru:', err))
+      .finally(() => {
+        if (!cancelled) setFetchingGuru(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -125,7 +159,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
   // Filter data
   const filteredData = data
     .filter((item) => {
-      const jurusanMatch = searchQuery === '' || (item.jurusan && item.jurusan.nama_jurusan.toLowerCase().includes(searchQuery.toLowerCase()))
+      const jurusanMatch = searchQuery === '' || (item.jurusan && item.jurusan.nama.toLowerCase().includes(searchQuery.toLowerCase()))
       const kelasMatch =
         item.nama_kelas.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.tahun_ajaran.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -138,7 +172,11 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
       if (tingkatFilter !== 'all' && tingkatFilter !== '') {
         matchesTingkat = item.tingkat.toString() === tingkatFilter
       }
-      return matchesSearch && matchesStatus && matchesTingkat
+      let matchesJurusan = true
+      if (jurusanFilter !== 'all') {
+        matchesJurusan = item.jurusan_id === jurusanFilter
+      }
+      return matchesSearch && matchesStatus && matchesTingkat && matchesJurusan
     })
 
   // Create handler
@@ -222,11 +260,11 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
     }
   }, [refreshData, showFeedback, setFeedback])
 
-  // Generate tingkat options (1-12)
+  // Generate tingkat options (10-12)
   const tingkatOptions = useMemo((): { value: string; label: string }[] => {
-    return Array.from({ length: 12 }, (_, i: number) => ({
-      value: (i + 1).toString(),
-      label: `Kelas ${i + 1}`,
+    return Array.from({ length: 3 }, (_, i: number) => ({
+      value: (i + 10).toString(),
+      label: `Kelas ${i + 10}`,
     }))
   }, [])
 
@@ -311,6 +349,19 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
 
           <div className="flex flex-wrap items-center gap-3">
             <select
+              value={jurusanFilter}
+              onChange={(e) => setJurusanFilter(e.target.value)}
+              className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+            >
+              <option value="all">Semua Jurusan</option>
+              {jurusanOptions.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.kode} - {j.nama}
+                </option>
+              ))}
+            </select>
+
+            <select
               value={tingkatFilter}
               onChange={(e) => setTingkatFilter(e.target.value)}
               className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
@@ -375,6 +426,8 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
                   <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Kelas</th>
                   <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Tingkat</th>
                   <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Jurusan</th>
+                  <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Wali Kelas</th>
+                  <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Siswa</th>
                   <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Tahun Ajaran</th>
                   <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
                   <th className="py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider text-right">Aksi</th>
@@ -407,11 +460,27 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
                           <Building2 className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
                           <span className="font-medium">{item.jurusan.kode}</span>
                           <span className="text-gray-400">-</span>
-                          <span>{item.jurusan.nama_jurusan}</span>
+                          <span>{item.jurusan.nama}</span>
                         </span>
                       ) : (
                         <span className="text-sm text-gray-400 italic">Tanpa Jurusan</span>
                       )}
+                    </td>
+                    <td className="py-4 px-6">
+                      {item.wali_kelas_nama ? (
+                        <span className="inline-flex items-center gap-1.5 text-sm text-gray-700">
+                          <UserCheck className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+                          <span className="font-medium">{item.wali_kelas_nama}</span>
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-400 italic">Belum ada wali</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="inline-flex items-center gap-1.5 text-sm text-gray-700 font-semibold">
+                        <GraduationCap className="h-4 w-4 text-purple-400 flex-shrink-0" />
+                        {item.jumlah_siswa ?? 0} siswa
+                      </span>
                     </td>
                     <td className="py-4 px-6 text-sm text-gray-600">
                       {item.tahun_ajaran}
@@ -468,6 +537,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
               tingkat: parseInt(formData.get('tingkat') as string, 10),
               tahun_ajaran: formData.get('tahun_ajaran') as string,
               jurusan_id: formData.get('jurusan_id') as string || null,
+              wali_kelas_id: formData.get('wali_kelas_id') as string || null,
             })
           }} className="space-y-4 pt-2">
           <div className="space-y-1.5">
@@ -538,11 +608,34 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
                   { value: '', label: ' -- Pilih Jurusan (opsional) --' },
                   ...jurusanOptions.map((j: JurusanData) => ({
                     value: j.id,
-                    label: `${j.kode} - ${j.nama_jurusan}`,
+                    label: `${j.kode} - ${j.nama}`,
                   })),
                 ]}
               />
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              Wali Kelas <span className="text-gray-400">(opsional)</span>
+            </label>
+            {fetchingGuru ? (
+              <div className="py-3 text-center text-sm text-gray-400">Memuat daftar guru...</div>
+            ) : guruOptions.length === 0 ? (
+              <div className="py-3 text-center text-sm text-amber-600 bg-amber-50 rounded-xl">
+                <p className="mb-1">Belum ada guru aktif</p>
+                <p className="text-xs opacity-80">Tambahkan akun guru terlebih dahulu</p>
+              </div>
+            ) : (
+              <Select
+                name="wali_kelas_id"
+                options={[
+                  { value: '', label: ' -- Tanpa Wali Kelas --' },
+                  ...guruOptions.map((g) => ({ value: g.id, label: g.nama_lengkap })),
+                ]}
+              />
+            )}
+            <p className="text-xs text-gray-400">Wali kelas berbeda dari guru pengampu mapel; satu guru hanya bisa wali satu kelas.</p>
           </div>
 
           <div className="pt-4 flex items-center space-x-3 border-t border-gray-100 mt-2">
@@ -573,6 +666,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
                 tingkat: formData.get('tingkat') ? parseInt(formData.get('tingkat') as string, 10) : undefined,
                 tahun_ajaran: formData.get('tahun_ajaran') as string || undefined,
                 jurusan_id: (formData.get('jurusan_id') as string) || null,
+                wali_kelas_id: (formData.get('wali_kelas_id') as string) || null,
                 status: formData.get('status') === 'on' || formData.get('status') === 'true',
               })
             }}
@@ -659,11 +753,35 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
                     { value: '', label: ' -- Tanpa Jurusan --' },
                     ...jurusanOptions.map((j: JurusanData) => ({
                       value: j.id,
-                      label: `${j.kode} - ${j.nama_jurusan}`,
+                      label: `${j.kode} - ${j.nama}`,
                     })),
                   ]}
                 />
               )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+                Wali Kelas <span className="text-gray-400 font-medium normal-case">(opsional)</span>
+              </label>
+              {fetchingGuru ? (
+                <div className="py-3 text-center text-sm text-gray-400">Memuat daftar guru...</div>
+              ) : guruOptions.length === 0 ? (
+                <div className="py-3 text-center text-sm text-amber-600 bg-amber-50 rounded-xl">
+                  <p className="mb-1">Belum ada guru aktif</p>
+                  <p className="text-xs opacity-80">Tambahkan akun guru terlebih dahulu</p>
+                </div>
+              ) : (
+                <Select
+                  name="wali_kelas_id"
+                  defaultValue={editingItem.wali_kelas_id ?? ''}
+                  options={[
+                    { value: '', label: ' -- Tanpa Wali Kelas --' },
+                    ...guruOptions.map((g) => ({ value: g.id, label: g.nama_lengkap })),
+                  ]}
+                />
+              )}
+              <p className="text-xs text-gray-400">Wali kelas berbeda dari guru pengampu mapel; satu guru hanya bisa wali satu kelas.</p>
             </div>
 
             <div className="space-y-2">

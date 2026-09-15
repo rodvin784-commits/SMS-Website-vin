@@ -58,7 +58,43 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ assignments })
+    // Total baris presensi milik guru ini (semua kelas & tanggal)
+    const assignmentIds = assignments.map((a) => a.id)
+    let presensiTerkirim = 0
+    if (assignmentIds.length > 0) {
+      const { count } = await getSupabaseAdmin()
+        .from('presensi')
+        .select('id', { count: 'exact', head: true })
+        .in('guru_mengajar_id', assignmentIds)
+      presensiTerkirim = count ?? 0
+    }
+
+    // Kelas di mana guru ini menjadi wali kelas (berbeda dari penugasan pengampu)
+    const { data: waliRows, error: waliError } = await getSupabaseAdmin()
+      .from('kelas')
+      .select('id, nama_kelas, tingkat, tahun_ajaran, jurusan:jurusan(kode, nama)')
+      .eq('wali_kelas_id', user.id)
+      .eq('status', true)
+
+    let waliKelas: { id: string; nama_kelas: string; tingkat: number; tahun_ajaran: string; jurusan_nama: string | null } | null = null
+    if (waliError) {
+      console.error('Gagal memuat wali kelas:', waliError.message)
+    } else {
+      const row = (waliRows ?? [])[0]
+      if (row) {
+        const jurusanRaw = (row as unknown as { jurusan?: { kode: string; nama: string } | { kode: string; nama: string }[] | null }).jurusan
+        const jurusan = Array.isArray(jurusanRaw) ? jurusanRaw[0] : jurusanRaw
+        waliKelas = {
+          id: row.id,
+          nama_kelas: row.nama_kelas,
+          tingkat: row.tingkat,
+          tahun_ajaran: row.tahun_ajaran,
+          jurusan_nama: jurusan ? `${jurusan.kode} - ${jurusan.nama}` : null,
+        }
+      }
+    }
+
+    return NextResponse.json({ assignments, presensi_terkirim: presensiTerkirim, wali_kelas: waliKelas })
   } catch (err) {
     console.error('Error listing teacher mengajar:', err)
     return NextResponse.json(

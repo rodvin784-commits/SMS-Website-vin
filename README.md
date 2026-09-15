@@ -65,7 +65,7 @@ proxy.ts                        # Middleware auth: lindungi /admin/* dan /teache
 |---|---|
 | `profiles` | Data pengguna (id = auth.users.id, `role`, `status`, `kelas_id` untuk siswa) |
 | `mata_pelajaran` | Mata pelajaran (kode, nama, deskripsi, status) |
-| `kelas` | Kelas (nama_kelas, `tingkat` 10–12, tahun_ajaran, jurusan_id) |
+| `kelas` | Kelas (nama_kelas, `tingkat` 10–12, tahun_ajaran, jurusan_id, `wali_kelas_id`) |
 | `jurusan` | Daftar jurusan |
 | `guru_mengajar` | Junction guru ↔ mata_pelajaran + kelas (+ semester, materi) |
 | `jadwal_pelajaran` | Pertemuan mingguan: guru_mengajar_id + hari (1–6) + jam mulai/selesai + ruangan |
@@ -91,6 +91,7 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 
 - `profiles.status` / `mata_pelajaran.status` / `kelas.status` — `true` = aktif, `false` = nonaktif
 - `kelas.tingkat` — hanya 10, 11, 12 (validasi di API & pilihan UI)
+- `kelas.wali_kelas_id` — FK ke `profiles(id) ON DELETE SET NULL`; wali kelas (homeroom) ≠ guru pengampu; satu guru hanya wali satu kelas (unique index parsial)
 - `profiles.kelas_id` — FK ke `kelas(id) ON DELETE SET NULL`, hanya terisi untuk role siswa
 - `jadwal_pelajaran.hari` — 1 = Senin … 6 = Sabtu; `jam_selesai > jam_mulai`
 - `presensi.status` — `hadir` / `terlambat` / `izin` / `sakit` / `alfa`
@@ -108,6 +109,7 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 | `20260910_create_jadwal_pelajaran.sql` | Tabel `jadwal_pelajaran` |
 | `20260910_enable_rls_and_policies.sql` | RLS + policy SELECT untuk authenticated |
 | `20260915_add_kelas_id_to_profiles.sql` | Kolom `kelas_id` di profiles (relasi siswa→kelas) |
+| `20260915_add_wali_kelas.sql` | Kolom `wali_kelas_id` di kelas + unique index (satu guru satu wali) |
 | `20260915_create_presensi.sql` | Tabel `presensi` + trigger updated_at |
 | `20260915_create_nilai.sql` | Tabel `nilai` (komponen harian/tugas/uts/uas) |
 
@@ -149,7 +151,7 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 | `/api/admin/users` | GET/POST/PUT/DELETE | CRUD pengguna; POST/PUT terima `kelas_id` untuk siswa (validasi kelas aktif tingkat 10–12); PUT mendukung reset password |
 | `/api/admin/mata-pelajaran` | GET/POST/PUT/DELETE | CRUD mapel + guru pengampu |
 | `/api/admin/mata-pelajaran/[id]/penugasan` | GET/POST/PUT/DELETE | Kelola penugasan guru per mapel (kelas + semester + materi) |
-| `/api/admin/kelas` | GET/POST/PUT/DELETE | CRUD kelas; GET menyertakan `jumlah_siswa` (nested count) |
+| `/api/admin/kelas` | GET/POST/PUT/DELETE | CRUD kelas; GET menyertakan `jumlah_siswa` (nested count) + `wali_kelas_nama`; POST/PUT terima `wali_kelas_id` (validasi guru aktif & belum jadi wali kelas lain) |
 | `/api/admin/jurusan` | GET/POST/PUT/DELETE | CRUD jurusan |
 | `/api/admin/jadwal` | GET/POST/DELETE | Jadwal per kelas; GET penugasan menyertakan `kelas_id`, `mapel_nama`, `guru_nama` |
 
@@ -157,7 +159,7 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 
 | Endpoint | Method | Fungsi |
 |---|---|---|
-| `/api/teacher/mengajar` | GET | Penugasan mengajar milik guru + jumlah presensi yang sudah dikirim (`presensi_terkirim`) |
+| `/api/teacher/mengajar` | GET | Penugasan mengajar milik guru + jumlah presensi yang sudah dikirim (`presensi_terkirim`) + `wali_kelas` (kelas tempat guru menjadi wali, null jika tidak ada) |
 | `/api/teacher/presensi` | GET | Roster siswa kelas + presensi pada tanggal tertentu (verified milik guru) |
 | `/api/teacher/presensi` | POST | Upsert massal presensi (tolak tanggal mendatang, validasi siswa anggota kelas) |
 | `/api/teacher/jadwal` | GET | Jadwal mingguan milik guru (hari, jam, ruangan, mapel, kelas) |
@@ -187,6 +189,13 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 - Siswa di-assign ke kelas via **Manajemen Pengguna → Tambah/Edit → field "Kelas"** (muncul hanya untuk role siswa)
 - Kelas yang bisa dipilih: kelas aktif tingkat 10–12
 - Data kelas menampilkan **jumlah siswa** per kelas
+
+#### Wali Kelas
+
+1. Buka **Data Kelas** → Tambah/Edit Kelas → field **Wali Kelas** (opsional, daftar guru aktif)
+2. Wali kelas berbeda dari guru pengampu mapel — pengampu diatur per mapel+kelas di **Mata Pelajaran → Atur Guru Pengampu**, wali diatur satu per kelas di **Data Kelas**
+3. Satu guru hanya bisa menjadi wali satu kelas (ditolak API bila sudah wali di kelas lain)
+4. Guru dapat melihat status wali kelasnya di **Dashboard Guru** (kartu "Wali Kelas")
 
 #### Jadwal Pelajaran
 

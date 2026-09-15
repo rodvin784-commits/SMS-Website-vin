@@ -5,8 +5,13 @@ import { denyResponse, serverError } from '@/lib/api-admin'
 
 // Embed to-one PostgREST bisa berupa object atau array tergantung deteksi relasi
 type JurusanEmbed =
-  | { id: string; kode: string; nama_jurusan: string }[]
-  | { id: string; kode: string; nama_jurusan: string }
+  | { id: string; kode: string; nama: string }[]
+  | { id: string; kode: string; nama: string }
+  | null
+
+type WaliEmbed =
+  | { id: string; nama_lengkap: string }[]
+  | { id: string; nama_lengkap: string }
   | null
 
 type KelasWithJurusan = {
@@ -16,8 +21,44 @@ type KelasWithJurusan = {
   tahun_ajaran: string
   jurusan_id: string | null
   jurusan: JurusanEmbed
+  wali_kelas_id: string | null
+  wali_kelas: WaliEmbed
   status: boolean
   created_at: string
+  profiles?: { count: number }[] | { count: number } | null
+}
+
+// Validasi wali kelas: harus guru aktif dan belum menjadi wali di kelas lain.
+// Return pesan error bila tidak valid, atau null bila valid.
+async function cekWaliValid(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
+  waliId: string,
+  excludeKelasId?: string
+): Promise<string | null> {
+  const { data: guru, error: guruError } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('id', waliId)
+    .eq('role', 'guru')
+    .eq('status', true)
+    .maybeSingle()
+
+  if (guruError) return guruError.message
+  if (!guru) return 'Wali kelas harus berupa guru yang aktif'
+
+  let q = supabaseAdmin
+    .from('kelas')
+    .select('id, nama_kelas')
+    .eq('wali_kelas_id', waliId)
+  if (excludeKelasId) q = q.neq('id', excludeKelasId)
+
+  const { data: sudah, error: sudahError } = await q.limit(1)
+  if (sudahError) return sudahError.message
+  if (sudah && sudah.length > 0) {
+    return `Guru ini sudah menjadi wali kelas di kelas (${sudah[0].nama_kelas}). Satu guru hanya boleh wali satu kelas.`
+  }
+
+  return null
 }
 
 // GET /api/admin/kelas - List semua kelas
@@ -42,9 +83,12 @@ export async function GET(request: NextRequest) {
         tingkat,
         tahun_ajaran,
         jurusan_id,
-        jurusan:jurusan(id, kode, nama_jurusan),
+        jurusan:jurusan(id, kode, nama),
+        wali_kelas_id,
+        wali_kelas:profiles!wali_kelas_id(id, nama_lengkap),
         status,
-        created_at
+        created_at,
+        profiles:profiles!kelas_id(count)
       `)
       .order('tingkat', { ascending: true })
       .order('nama_kelas', { ascending: true })
@@ -75,6 +119,8 @@ export async function GET(request: NextRequest) {
     // Format data dengan jurusan nested (embed to-one PostgREST bisa object atau array)
     const formattedData = ((data ?? []) as KelasWithJurusan[]).map((k) => {
       const jurusan = Array.isArray(k.jurusan) ? (k.jurusan[0] ?? null) : k.jurusan
+      const wali = Array.isArray(k.wali_kelas) ? (k.wali_kelas[0] ?? null) : k.wali_kelas
+      const profilesCount = Array.isArray(k.profiles) ? (k.profiles[0]?.count ?? 0) : (k.profiles?.count ?? 0)
       return {
         id: k.id,
         nama_kelas: k.nama_kelas,
@@ -85,11 +131,14 @@ export async function GET(request: NextRequest) {
           ? {
               id: jurusan.id,
               kode: jurusan.kode,
-              nama_jurusan: jurusan.nama_jurusan,
+              nama: jurusan.nama,
             }
           : null,
+        wali_kelas_id: k.wali_kelas_id ?? null,
+        wali_kelas_nama: wali?.nama_lengkap ?? null,
         status: k.status,
         created_at: k.created_at,
+        jumlah_siswa: profilesCount,
       }
     })
 
@@ -109,15 +158,15 @@ export async function POST(request: Request) {
 
     const supabaseAdmin = getSupabaseAdmin()
     const body = await request.json()
-    const { nama_kelas, tingkat, tahun_ajaran, jurusan_id } = body
+    const { nama_kelas, tingkat, tahun_ajaran, jurusan_id, wali_kelas_id } = body
 
     // Validasi input
     if (!nama_kelas || nama_kelas.trim() === '') {
       return NextResponse.json({ error: 'Nama kelas wajib diisi' }, { status: 400 })
     }
 
-    if (!tingkat || isNaN(tingkat) || tingkat < 1 || tingkat > 12) {
-      return NextResponse.json({ error: 'Tingkat kelas wajib diisi (1-12)' }, { status: 400 })
+    if (!tingkat || isNaN(tingkat) || tingkat < 10 || tingkat > 12) {
+      return NextResponse.json({ error: 'Tingkat kelas wajib diisi (10-12)' }, { status: 400 })
     }
 
     if (!tahun_ajaran || tahun_ajaran.trim() === '') {
@@ -139,6 +188,14 @@ export async function POST(request: Request) {
 
       if (!jurusan) {
         return NextResponse.json({ error: 'Jurusan tidak ditemukan atau tidak aktif' }, { status: 400 })
+      }
+    }
+
+    // Validasi wali kelas (jika dikirim): harus guru aktif & belum jadi wali kelas lain
+    if (wali_kelas_id) {
+      const errWali = await cekWaliValid(supabaseAdmin, wali_kelas_id)
+      if (errWali) {
+        return NextResponse.json({ error: errWali }, { status: 400 })
       }
     }
 
@@ -168,9 +225,10 @@ export async function POST(request: Request) {
         tingkat: parseInt(tingkat, 10),
         tahun_ajaran: tahun_ajaran.trim(),
         jurusan_id: jurusan_id || null,
+        wali_kelas_id: wali_kelas_id || null,
         status: true,
       })
-      .select('id, nama_kelas, tingkat, tahun_ajaran, jurusan_id, status, created_at')
+      .select('id, nama_kelas, tingkat, tahun_ajaran, jurusan_id, wali_kelas_id, status, created_at')
       .single()
 
     if (insertError) {
@@ -193,13 +251,13 @@ export async function PUT(request: Request) {
 
     const supabaseAdmin = getSupabaseAdmin()
     const body = await request.json()
-    const { id, nama_kelas, tingkat, tahun_ajaran, jurusan_id, status } = body
+    const { id, nama_kelas, tingkat, tahun_ajaran, jurusan_id, status, wali_kelas_id } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID kelas wajib diisi' }, { status: 400 })
     }
 
-    const updates: { nama_kelas?: string; tingkat?: number; tahun_ajaran?: string; jurusan_id?: string | null; status?: boolean } = {}
+    const updates: { nama_kelas?: string; tingkat?: number; tahun_ajaran?: string; jurusan_id?: string | null; wali_kelas_id?: string | null; status?: boolean } = {}
 
     if (nama_kelas !== undefined && nama_kelas.trim() !== '') {
       // Cek duplikat (kecuali yang sedang diupdate)
@@ -224,7 +282,7 @@ export async function PUT(request: Request) {
       updates.nama_kelas = nama_kelas.trim()
     }
 
-    if (tingkat !== undefined && !isNaN(tingkat) && tingkat >= 1 && tingkat <= 12) {
+    if (tingkat !== undefined && !isNaN(tingkat) && tingkat >= 10 && tingkat <= 12) {
       updates.tingkat = parseInt(tingkat, 10)
     }
 
@@ -254,6 +312,17 @@ export async function PUT(request: Request) {
       updates.jurusan_id = jurusan_id || null
     }
 
+    if (wali_kelas_id !== undefined) {
+      // Validasi wali (jika dikirim): harus guru aktif & belum jadi wali kelas lain (kecuali kelas ini sendiri)
+      if (wali_kelas_id) {
+        const errWali = await cekWaliValid(supabaseAdmin, wali_kelas_id, id)
+        if (errWali) {
+          return NextResponse.json({ error: errWali }, { status: 400 })
+        }
+      }
+      updates.wali_kelas_id = wali_kelas_id || null
+    }
+
     if (status !== undefined) {
       updates.status = status
     }
@@ -262,7 +331,7 @@ export async function PUT(request: Request) {
       .from('kelas')
       .update(updates)
       .eq('id', id)
-      .select('id, nama_kelas, tingkat, tahun_ajaran, jurusan_id, status, created_at')
+      .select('id, nama_kelas, tingkat, tahun_ajaran, jurusan_id, wali_kelas_id, status, created_at')
       .single()
 
     if (error) {
