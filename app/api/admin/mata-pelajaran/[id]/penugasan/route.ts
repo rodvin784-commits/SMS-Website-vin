@@ -3,19 +3,11 @@ import type { NextRequest } from 'next/server'
 import { adminCheck, getSupabaseAdmin } from '@/lib/supabase-server'
 import { denyResponse, serverError } from '@/lib/api-admin'
 
-const SEMESTER_OPTIONS = ['ganjil', 'genap'] as const
-type Semester = (typeof SEMESTER_OPTIONS)[number]
-
-function normalizeSemester(value: unknown): Semester {
-  if (typeof value === 'string' && value.trim().length > 0) {
-    const v = value.trim().toLowerCase()
-    if (v === 'ganjil' || v === 'genap') return v
-  }
-  return 'ganjil'
-}
+const pickOne = <T,>(v: T[] | T | null | undefined): T | null =>
+  Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
 
 // GET /api/admin/mata-pelajaran/[id]/penugasan
-// Returns current assignments for this subject + available guru & kelas options
+// Returns current guru_kelas assignments for this subject + available guru & kelas options.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -27,68 +19,79 @@ export async function GET(
     const { id: mapelId } = await params
     const supabaseAdmin = getSupabaseAdmin()
 
-    // 1. Current assignments for this subject
+    // 1. Current assignments for this subject (dari guru_kelas)
     const { data: assignments, error: assignError } = await supabaseAdmin
-      .from('guru_mengajar')
+      .from('guru_kelas')
       .select(`
         id,
         guru_id,
         kelas_id,
-        materi,
-        semester,
-        profiles(nama_lengkap),
+        tahun_ajaran,
+        guru(nama_lengkap, nip),
         kelas(nama_kelas, tingkat, tahun_ajaran)
       `)
-      .eq('mapel_id', mapelId)
+      .eq('mata_pelajaran_id', mapelId)
       .order('created_at', { ascending: true })
 
     if (assignError) {
       return NextResponse.json({ error: assignError.message }, { status: 400 })
     }
 
-    // PostgREST returns a single object for to-one relations and array for to-many:
-    const pickOne = (v: unknown) => (Array.isArray(v) ? v[0] : v)
-
-    const formatted = (assignments ?? []).map((r) => {
-      const row = r as {
-        id: string
-        guru_id: string
-        kelas_id: string
-        materi: string | null
-        semester: string | null
-        profiles: { nama_lengkap: string } | { nama_lengkap: string }[] | null
-        kelas:
-          | { nama_kelas: string; tingkat: number; tahun_ajaran: string }
-          | { nama_kelas: string; tingkat: number; tahun_ajaran: string }[]
-          | null
-      }
-      const profile = pickOne(row.profiles)
-      const kelasRow = pickOne(row.kelas)
+    const formatted = ((assignments ?? []) as Array<{
+      id: string
+      guru_id: string
+      kelas_id: string
+      tahun_ajaran: string | null
+      guru: { nama_lengkap: string | null; nip: string | null } | { nama_lengkap: string | null; nip: string | null }[] | null
+      kelas:
+        | { nama_kelas: string; tingkat: number; tahun_ajaran: string }
+        | { nama_kelas: string; tingkat: number; tahun_ajaran: string }[]
+        | null
+    }>).map((r) => {
+      const guru = pickOne(r.guru)
+      const kelasRow = pickOne(r.kelas)
       return {
-        id: row.id,
-        guru_id: row.guru_id,
-        guru_nama: profile?.nama_lengkap ?? 'Tanpa Nama',
-        kelas_id: row.kelas_id,
+        id: r.id,
+        guru_id: r.guru_id,
+        guru_nama: guru?.nama_lengkap ?? 'Tanpa Nama',
+        kelas_id: r.kelas_id,
         kelas_nama: kelasRow?.nama_kelas ?? '-',
         tingkat: kelasRow?.tingkat ?? null,
-        tahun_ajaran: kelasRow?.tahun_ajaran ?? null,
-        semester: row.semester ?? null,
-        materi: row.materi ?? null,
+        tahun_ajaran: r.tahun_ajaran ?? kelasRow?.tahun_ajaran ?? null,
       }
     })
 
-    // 2. Available guru options (role=guru, status=true, not already assigned for this mapel)
-    const assignedGuruIds = formatted.map((a) => a.guru_id)
-    const guruQuery = supabaseAdmin
-      .from('profiles')
-      .select('id, nama_lengkap')
-      .eq('role', 'guru')
-      .eq('status', true)
+    // 2. Available guru options (dari tabel guru, profile aktif role=guru)
+    const { data: guruRows, error: guruError } = await supabaseAdmin
+      .from('guru')
+      .select('id, profile_id, nip, nama_lengkap')
       .order('nama_lengkap', { ascending: true })
 
-    const { data: allGuru, error: guruError } = await guruQuery
     if (guruError) {
       return NextResponse.json({ error: guruError.message }, { status: 400 })
+    }
+
+    const assignedGuruIds = formatted.map((a) => a.guru_id)
+
+    // Filter guru yang profilenya role=guru & aktif
+    let guruList: { id: string; nama_lengkap: string }[] = []
+    if ((guruRows ?? []).length > 0) {
+      const guruProfiles = await supabaseAdmin
+        .from('profiles')
+        .select('id, nama_lengkap, role, status')
+        .in('id', (guruRows ?? []).map((g) => g.profile_id))
+      const activeProfiles = new Set(
+        (guruProfiles.data ?? [])
+          .filter((p) => p.role === 'guru' && p.status !== false)
+          .map((p) => p.id)
+      )
+      guruList = (guruRows ?? [])
+        .filter((g) => activeProfiles.has(g.profile_id))
+        .map((g) => ({
+          id: g.id,
+          nama_lengkap: g.nama_lengkap ?? 'Tanpa Nama',
+        }))
+        .sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
     }
 
     // 3. Available kelas options (status=true)
@@ -103,18 +106,24 @@ export async function GET(
       return NextResponse.json({ error: kelasError.message }, { status: 400 })
     }
 
+    // 4. Referensi tahun ajaran (dari data kelas yang ada)
+    const { data: tahunRows } = await supabaseAdmin
+      .from('kelas')
+      .select('tahun_ajaran')
+      .not('tahun_ajaran', 'is', null)
+      .order('tahun_ajaran', { ascending: false })
+    const tahunAjaranOptions = Array.from(
+      new Set<string>((tahunRows ?? []).map((t) => t.tahun_ajaran as string).filter(Boolean))
+    )
+
     return NextResponse.json({
       assignments: formatted,
-      guru: (allGuru ?? []).map((g: { id: string; nama_lengkap: string }) => ({
-        id: g.id,
-        nama_lengkap: g.nama_lengkap,
+      guru: guruList.map((g) => ({
+        ...g,
         alreadyAssigned: assignedGuruIds.includes(g.id),
       })),
       kelas: allKelas ?? [],
-      semesters: SEMESTER_OPTIONS.map((s) => ({
-        value: s,
-        label: s === 'ganjil' ? 'Semester Ganjil' : 'Semester Genap',
-      })),
+      tahunAjaranOptions,
     }, { status: 200 })
   } catch (err) {
     return serverError(err, 'Error fetching penugasan:')
@@ -122,8 +131,7 @@ export async function GET(
 }
 
 // POST /api/admin/mata-pelajaran/[id]/penugasan
-// Add a new assignment: { guru_id, kelas_id, materi? }
-// Smart merge: only adds new rows, doesn't replace existing assignments for other subjects
+// Body: { guru_id (dari tabel guru), kelas_id, tahun_ajaran? }
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -135,7 +143,7 @@ export async function POST(
     const { id: mapelId } = await params
     const supabaseAdmin = getSupabaseAdmin()
     const body = await request.json()
-    const { guru_id, kelas_id, materi, semester } = body
+    const { guru_id, kelas_id, tahun_ajaran } = body
 
     if (!guru_id) {
       return NextResponse.json({ error: 'ID guru wajib diisi' }, { status: 400 })
@@ -145,19 +153,25 @@ export async function POST(
       return NextResponse.json({ error: 'ID kelas wajib diisi' }, { status: 400 })
     }
 
-    const semesterNorm = normalizeSemester(semester)
-
-    // Validate guru exists and is active guru
+    // Validate guru exists in tabel guru + profile aktif
     const { data: guru } = await supabaseAdmin
-      .from('profiles')
-      .select('id, role')
+      .from('guru')
+      .select('id, profile_id')
       .eq('id', guru_id)
-      .eq('role', 'guru')
-      .eq('status', true)
       .maybeSingle()
 
     if (!guru) {
-      return NextResponse.json({ error: 'Guru tidak ditemukan atau tidak aktif' }, { status: 400 })
+      return NextResponse.json({ error: 'Guru tidak ditemukan' }, { status: 400 })
+    }
+
+    const { data: guruProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('role, status')
+      .eq('id', guru.profile_id)
+      .maybeSingle()
+
+    if (!guruProfile || guruProfile.role !== 'guru' || guruProfile.status === false) {
+      return NextResponse.json({ error: 'Guru tidak aktif atau bukan guru' }, { status: 400 })
     }
 
     // Validate kelas exists and is active
@@ -184,38 +198,51 @@ export async function POST(
       return NextResponse.json({ error: 'Mata pelajaran tidak ditemukan atau tidak aktif' }, { status: 400 })
     }
 
-    // Check duplicate: same guru + same mapel + same kelas + same semester
+    // Check duplicate: same guru + same mapel + same kelas
     const { data: existing } = await supabaseAdmin
-      .from('guru_mengajar')
+      .from('guru_kelas')
       .select('id')
       .eq('guru_id', guru_id)
-      .eq('mapel_id', mapelId)
+      .eq('mata_pelajaran_id', mapelId)
       .eq('kelas_id', kelas_id)
-      .eq('semester', semesterNorm)
       .maybeSingle()
 
     if (existing) {
       return NextResponse.json(
-        { error: `Penugasan sudah ada untuk guru ini di "${mapel.nama}" kelas tersebut untuk semester ${semesterNorm === 'ganjil' ? 'Ganjil' : 'Genap'}` },
+        { error: `Penugasan sudah ada untuk guru ini di "${mapel.nama}" kelas tersebut` },
         { status: 400 }
       )
     }
 
-    // Insert new assignment
+    // Insert ke guru_kelas
     const { data: result, error: insertError } = await supabaseAdmin
-      .from('guru_mengajar')
+      .from('guru_kelas')
       .insert({
         guru_id,
-        mapel_id: mapelId,
+        mata_pelajaran_id: mapelId,
         kelas_id,
-        semester: semesterNorm,
-        materi: materi?.trim() || null,
+        tahun_ajaran: tahun_ajaran ? String(tahun_ajaran).trim() : null,
       })
-      .select('id, guru_id, kelas_id, semester, materi')
+      .select('id, guru_id, kelas_id, tahun_ajaran')
       .single()
 
     if (insertError) {
       return NextResponse.json({ error: insertError.message }, { status: 400 })
+    }
+
+    // Sinkronkan guru_mata_pelajaran (relasi guru-mapel) tanpa batas kelas
+    const { data: existingGmp } = await supabaseAdmin
+      .from('guru_mata_pelajaran')
+      .select('id')
+      .eq('guru_id', guru_id)
+      .eq('mata_pelajaran_id', mapelId)
+      .maybeSingle()
+
+    if (!existingGmp) {
+      await supabaseAdmin.from('guru_mata_pelajaran').insert({
+        guru_id,
+        mata_pelajaran_id: mapelId,
+      })
     }
 
     return NextResponse.json({
@@ -228,7 +255,7 @@ export async function POST(
 }
 
 // PUT /api/admin/mata-pelajaran/[id]/penugasan
-// Update materi & semester of a single assignment: { id, materi?, semester? }
+// Body: { id, tahun_ajaran? }
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -240,22 +267,18 @@ export async function PUT(
     const { id: mapelId } = await params
     const supabaseAdmin = getSupabaseAdmin()
     const body = await request.json()
-    const { id: assignmentId, materi, semester } = body
+    const { id: assignmentId, tahun_ajaran } = body
 
     if (!assignmentId) {
       return NextResponse.json({ error: 'ID penugasan wajib diisi' }, { status: 400 })
     }
 
-    if (materi !== undefined && materi !== null && typeof materi !== 'string') {
-      return NextResponse.json({ error: 'Materi harus berupa teks' }, { status: 400 })
-    }
-
     // Verify assignment belongs to this subject
     const { data: assignment } = await supabaseAdmin
-      .from('guru_mengajar')
-      .select('id, mapel_id')
+      .from('guru_kelas')
+      .select('id, mata_pelajaran_id')
       .eq('id', assignmentId)
-      .eq('mapel_id', mapelId)
+      .eq('mata_pelajaran_id', mapelId)
       .maybeSingle()
 
     if (!assignment) {
@@ -265,17 +288,22 @@ export async function PUT(
       )
     }
 
-    const materiClean = typeof materi === 'string' && materi.trim() !== '' ? materi.trim() : null
-    const semesterNorm = semester !== undefined ? normalizeSemester(semester) : undefined
+    const updates: { tahun_ajaran?: string | null } = {}
+    if (tahun_ajaran !== undefined) {
+      updates.tahun_ajaran = typeof tahun_ajaran === 'string' && tahun_ajaran.trim() !== ''
+        ? tahun_ajaran.trim()
+        : null
+    }
 
-    const updates: { materi: string | null; semester?: Semester } = { materi: materiClean }
-    if (semesterNorm) updates.semester = semesterNorm
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'Tidak ada data yang diperbarui' }, { status: 400 })
+    }
 
     const { data: result, error } = await supabaseAdmin
-      .from('guru_mengajar')
+      .from('guru_kelas')
       .update(updates)
       .eq('id', assignmentId)
-      .select('id, guru_id, kelas_id, semester, materi')
+      .select('id, guru_id, kelas_id, tahun_ajaran')
       .single()
 
     if (error) {
@@ -283,9 +311,7 @@ export async function PUT(
     }
 
     return NextResponse.json({
-      message: materiClean
-        ? 'Pembaruan berhasil disimpan'
-        : 'Pembaruan berhasil disimpan (materi dikosongkan)',
+      message: 'Pembaruan berhasil disimpan',
       assignment: result,
     }, { status: 200 })
   } catch (err) {
@@ -294,7 +320,6 @@ export async function PUT(
 }
 
 // DELETE /api/admin/mata-pelajaran/[id]/penugasan?id=<assignment_id>
-// Remove a single assignment row
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -314,10 +339,10 @@ export async function DELETE(
 
     // Verify assignment belongs to this subject
     const { data: assignment } = await supabaseAdmin
-      .from('guru_mengajar')
-      .select('id, mapel_id')
+      .from('guru_kelas')
+      .select('id, guru_id, mata_pelajaran_id')
       .eq('id', assignmentId)
-      .eq('mapel_id', mapelId)
+      .eq('mata_pelajaran_id', mapelId)
       .maybeSingle()
 
     if (!assignment) {
@@ -328,12 +353,28 @@ export async function DELETE(
     }
 
     const { error } = await supabaseAdmin
-      .from('guru_mengajar')
+      .from('guru_kelas')
       .delete()
       .eq('id', assignmentId)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    // Bersihkan guru_mata_pelajaran jika guru tidak lagi mengajar mapel ini di kelas manapun
+    const { data: sisa } = await supabaseAdmin
+      .from('guru_kelas')
+      .select('id')
+      .eq('guru_id', assignment.guru_id)
+      .eq('mata_pelajaran_id', mapelId)
+      .limit(1)
+
+    if (!sisa || sisa.length === 0) {
+      await supabaseAdmin
+        .from('guru_mata_pelajaran')
+        .delete()
+        .eq('guru_id', assignment.guru_id)
+        .eq('mata_pelajaran_id', mapelId)
     }
 
     return NextResponse.json({ message: 'Penugasan berhasil dihapus' }, { status: 200 })

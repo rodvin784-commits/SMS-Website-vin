@@ -3,26 +3,35 @@
 import { useEffect, useState } from 'react'
 import { BookOpen, CalendarX2, Clock, MapPin } from 'lucide-react'
 
+// Hari pada tabel `jadwal` bertipe TEXT: Senin..Sabtu
+export const HARI_LIST = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'] as const
+
+const HARI_INDEX: Record<string, number> = {
+  Senin: 1,
+  Selasa: 2,
+  Rabu: 3,
+  Kamis: 4,
+  Jumat: 5,
+  Sabtu: 6,
+}
+
+// getDay(): 0=Minggu..6=Sabtu -> index 1..6
+function getDayIndex(d: Date): number {
+  const jsDay = d.getDay()
+  return jsDay === 0 ? 0 : jsDay
+}
+
 type JadwalEntry = {
   id: string
-  hari: number
+  hari: string
   jam_mulai: string
   jam_selesai: string
   ruangan: string | null
-  semester: string | null
+  tahun_ajaran: string | null
   mapel_nama: string | null
   mapel_kode: string | null
   kelas_nama: string | null
   tingkat: number | null
-}
-
-export const HARI_LABEL: Record<number, string> = {
-  1: 'Senin',
-  2: 'Selasa',
-  3: 'Rabu',
-  4: 'Kamis',
-  5: 'Jumat',
-  6: 'Sabtu',
 }
 
 export function JadwalMengajar() {
@@ -73,12 +82,19 @@ export function JadwalMengajar() {
     )
   }
 
-  const perHari = new Map<number, JadwalEntry[]>()
+  const perHari = new Map<string, JadwalEntry[]>()
   for (const entry of jadwal) {
     const list = perHari.get(entry.hari) ?? []
     list.push(entry)
     perHari.set(entry.hari, list)
   }
+
+  // Urutkan sesi per hari berdasarkan jam mulai
+  for (const list of perHari.values()) {
+    list.sort((a, b) => (a.jam_mulai || '').localeCompare(b.jam_mulai || ''))
+  }
+
+  const todayIndex = getDayIndex(new Date())
 
   return (
     <div className="space-y-6">
@@ -95,9 +111,9 @@ export function JadwalMengajar() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {([1, 2, 3, 4, 5, 6] as const).map((hari) => {
+        {HARI_LIST.map((hari) => {
           const entries = perHari.get(hari) ?? []
-          const isToday = new Date().getDay() === hari
+          const isToday = todayIndex === HARI_INDEX[hari]
           return (
             <div
               key={hari}
@@ -112,7 +128,7 @@ export function JadwalMengajar() {
                   ${isToday ? 'bg-emerald-50' : 'bg-gray-50'}
                 `}
               >
-                <h3 className="text-sm font-bold text-gray-900">{HARI_LABEL[hari]}</h3>
+                <h3 className="text-sm font-bold text-gray-900">{hari}</h3>
                 <span
                   className={`
                     text-xs font-bold ${entries.length > 0 ? 'text-emerald-600' : 'text-gray-400'}
@@ -143,7 +159,7 @@ export function JadwalMengajar() {
                           </p>
                           <p className="text-xs text-gray-500">
                             {entry.mapel_kode ? `${entry.mapel_kode} · ` : ''}
-                            Kelas {entry.tingkat} {entry.kelas_nama ?? ''}
+                            {entry.kelas_nama ?? ''}
                           </p>
                         </div>
                       </div>

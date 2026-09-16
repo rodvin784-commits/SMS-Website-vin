@@ -4,22 +4,17 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
-import { BookOpen, Calendar, ClipboardList, FileText, LayoutDashboard, Video } from 'lucide-react'
-import { MateriAjarManager } from '@/components/teacher'
+import { teacherNavItems } from '@/lib/teacher-nav'
+import { BookOpen, FileText, Video } from 'lucide-react'
+import { MateriAjarManager, VideoMateriManager } from '@/components/teacher'
 
-const navItems = [
-  { href: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/teacher/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran' },
-  { href: '/teacher/materi', icon: Video, label: 'Materi & Video' },
-  { href: '/teacher/presensi', icon: ClipboardList, label: 'Presensi Siswa' },
-  { href: '/teacher/jadwal', icon: Calendar, label: 'Jadwal Mengajar' },
-  { href: '/teacher/nilai', icon: FileText, label: 'Nilai Siswa' },
-]
+type Tab = 'materi' | 'video'
 
 export default function TeacherMateriPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [teacherName, setTeacherName] = useState('Guru')
+  const [tab, setTab] = useState<Tab>('materi')
 
   useEffect(() => {
     let cancelled = false
@@ -35,7 +30,7 @@ export default function TeacherMateriPage() {
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('nama_lengkap, role, status')
           .eq('id', session.user.id)
           .maybeSingle()
 
@@ -82,19 +77,43 @@ export default function TeacherMateriPage() {
     <AppShell
       role="teacher"
       userName={teacherName}
-      navItems={navItems}
+      navItems={teacherNavItems}
       onLogout={handleLogout}
       logoIcon={<BookOpen className="h-6 w-6 text-emerald-400" />}
     >
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Materi & Video Pembelajaran</h1>
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Materi & Video</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Tambahkan ringkasan materi, tautan video (YouTube/Drive), dan dokumen untuk siswa. Bisa diedit atau dihapus kapan saja.
+            Bagikan materi (file/dokumen) dan video pembelajaran ke kelas yang Anda ampu.
           </p>
         </div>
 
-        <MateriAjarManager />
+        {/* Tab Materi / Video */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setTab('materi')}
+            className={`
+              inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold border transition-all
+              ${tab === 'materi' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}
+            `}
+          >
+            <FileText className="h-4 w-4" />
+            Materi (File)
+          </button>
+          <button
+            onClick={() => setTab('video')}
+            className={`
+              inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold border transition-all
+              ${tab === 'video' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}
+            `}
+          >
+            <Video className="h-4 w-4" />
+            Video Pembelajaran
+          </button>
+        </div>
+
+        {tab === 'materi' ? <MateriAjarManager /> : <VideoMateriManager />}
       </div>
     </AppShell>
   )

@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# e2e test artifacts (token/cookie sesi - jangan di-commit)
+/.test/
+.test-ids.json

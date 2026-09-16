@@ -17,16 +17,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
 
-    // Single query dengan join guru_mengajar → profiles
+    // Single query dengan join guru_kelas → guru → kelas
     let query = supabaseAdmin
       .from('mata_pelajaran')
       .select(`
         ${SELECT_FIELDS},
-        guru_mengajar:guru_mengajar(
+        guru_kelas:guru_kelas(
           guru_id,
           kelas_id,
-          materi,
-          profiles(nama_lengkap),
+          guru(nama_lengkap),
           kelas(nama_kelas, tingkat)
         )
       `)
@@ -47,15 +46,15 @@ export async function GET(request: NextRequest) {
     // Format: dedupe guru per mapel, sertakan info kelas
     const pickOne = (v: unknown) => (Array.isArray(v) ? v[0] : v)
 
-    const result = (data ?? []).map((m) => {
-      const rawAssignments = Array.isArray(m.guru_mengajar) ? m.guru_mengajar : []
+    const result = (data ?? []).map((m: Record<string, unknown>) => {
+      const rawAssignments = Array.isArray(m.guru_kelas) ? (m.guru_kelas as Array<Record<string, unknown>>) : []
 
       // Dedupe guru: kumpulkan nama unik + daftar kelas per guru
       const guruMap = new Map<string, { nama: string; kelas: string[] }>()
       for (const a of rawAssignments) {
         // PostgREST returns a single object for to-one relations, array for to-many
-        const profile = pickOne(a.profiles)
-        const kelasRow = pickOne(a.kelas)
+        const guruRow = pickOne(a.guru) as { nama_lengkap: string | null } | null
+        const kelasRow = pickOne(a.kelas) as { nama_kelas: string; tingkat: number } | null
         const guruId = a.guru_id as string
         const kelasNama = kelasRow?.nama_kelas ?? null
         const existing = guruMap.get(guruId)
@@ -65,7 +64,7 @@ export async function GET(request: NextRequest) {
           }
         } else {
           guruMap.set(guruId, {
-            nama: profile?.nama_lengkap ?? 'Tanpa Nama',
+            nama: guruRow?.nama_lengkap ?? 'Tanpa Nama',
             kelas: kelasNama ? [kelasNama] : [],
           })
         }
@@ -74,7 +73,7 @@ export async function GET(request: NextRequest) {
       // Daftar semua kelas unik
       const kelasSet = new Set<string>()
       for (const a of rawAssignments) {
-        const kelasRow = pickOne(a.kelas)
+        const kelasRow = pickOne(a.kelas) as { nama_kelas: string } | null
         if (kelasRow?.nama_kelas) kelasSet.add(kelasRow.nama_kelas)
       }
 
@@ -306,11 +305,11 @@ export async function DELETE(request: Request) {
       }, { status: 200 })
     }
 
-    // Sudah nonaktif, hard delete hanya jika TIDAK ada di guru_mengajar
+    // Sudah nonaktif, hard delete hanya jika TIDAK ada di guru_kelas
     const { data: usedIn } = await supabaseAdmin
-      .from('guru_mengajar')
+      .from('guru_kelas')
       .select('id')
-      .eq('mapel_id', id)
+      .eq('mata_pelajaran_id', id)
       .maybeSingle()
 
     if (usedIn) {

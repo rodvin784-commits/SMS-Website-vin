@@ -155,6 +155,8 @@ export default function AdminUsersPage() {
     password: string
     role: 'guru' | 'siswa'
     kelas_id: string
+    nip?: string
+    nis?: string
   }) => {
     if (!data.email || !data.password || !data.nama_lengkap) {
       showFeedback('error', 'Semua field wajib diisi!')
@@ -162,6 +164,10 @@ export default function AdminUsersPage() {
     }
     if (data.password.length < 6) {
       showFeedback('error', 'Password minimal 6 karakter!')
+      return
+    }
+    if (data.role === 'siswa' && !data.nis) {
+      showFeedback('error', 'NIS wajib diisi untuk akun siswa!')
       return
     }
 
@@ -176,6 +182,8 @@ export default function AdminUsersPage() {
           password: data.password,
           role: data.role,
           kelas_id: data.role === 'siswa' ? (data.kelas_id || null) : null,
+          nip: data.role === 'guru' ? (data.nip || null) : null,
+          nis: data.role === 'siswa' ? (data.nis || null) : null,
         }),
       })
 
@@ -266,7 +274,9 @@ export default function AdminUsersPage() {
       .filter((user) => user.role !== 'admin') // Exclude admin from management
       .filter((user) => {
         const matchesSearch = user.nama_lengkap?.toLowerCase().includes(search) ||
-          user.email?.toLowerCase().includes(search)
+          user.email?.toLowerCase().includes(search) ||
+          user.nip?.toLowerCase().includes(search) ||
+          user.nis?.toLowerCase().includes(search)
 
         // Status filter
         let matchesStatus = true

@@ -77,9 +77,9 @@ export async function GET() {
         .order('created_at', { ascending: false })
         .limit(5),
       supabaseAdmin
-        .from('guru_mengajar')
+        .from('guru_kelas')
         .select(
-          'id, created_at, guru:profiles!guru_id(nama_lengkap), mapel:mata_pelajaran!mapel_id(nama), kelas:kelas!kelas_id(nama_kelas, tingkat)'
+          'id, created_at, guru:guru!guru_id(nama_lengkap), mapel:mata_pelajaran!mata_pelajaran_id(nama), kelas:kelas!kelas_id(nama_kelas, tingkat)'
         )
         .order('created_at', { ascending: false })
         .limit(5),

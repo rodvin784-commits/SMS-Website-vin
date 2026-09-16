@@ -1,102 +1,50 @@
 import { NextResponse } from 'next/server'
-import { getProfileRole, getSessionUser, getSupabaseAdmin } from '@/lib/supabase-server'
+import { getSupabaseAdmin } from '@/lib/supabase-server'
+import { guruAuth, getGuruKelas } from '@/lib/guru-auth'
 
-type MapelEmbed = { nama: string; kode: string }[] | { nama: string; kode: string } | null
-type KelasEmbed =
-  | { nama_kelas: string; tingkat: number; tahun_ajaran: string }[]
-  | { nama_kelas: string; tingkat: number; tahun_ajaran: string }
-  | null
-
-type MengajarRow = {
-  id: string
-  mapel_id: string
-  kelas_id: string
-  materi: string | null
-  semester: string | null
-  mata_pelajaran: MapelEmbed
-  kelas: KelasEmbed
-}
-
-// GET /api/teacher/mengajar -> penugasan mengajar guru yang sedang login
+// GET /api/teacher/mengajar
+// Penugasan mengajar milik guru yang login (dari guru_kelas): mapel + kelas + tahun ajaran.
+// Termasuk penanda apakah guru adalah wali kelas suatu kelas (kolom kelas.wali_kelas_id —
+// jika kolom ini tidak ada di database, fitur wali kelas otomatis tersembunyi).
 export async function GET() {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Belum login' }, { status: 401 })
+    const auth = await guruAuth()
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const profile = await getProfileRole(user.id)
-    if (profile.role !== 'guru' || profile.status === false) {
-      return NextResponse.json({ error: 'Tidak diizinkan. Hanya guru aktif.' }, { status: 403 })
-    }
+    const assignments = await getGuruKelas(auth.guruId)
 
-    const { data, error } = await getSupabaseAdmin()
-      .from('guru_mengajar')
-      .select('id, materi, semester, mapel_id, kelas_id, mata_pelajaran(nama, kode), kelas(nama_kelas, tingkat, tahun_ajaran)')
-      .eq('guru_id', user.id)
-      .order('created_at', { ascending: true })
+    // Cek apakah kolom wali_kelas_id tersedia di tabel kelas.
+    let waliKelas: {
+      kelas_id: string
+      nama_kelas: string | null
+      tingkat: number | null
+      tahun_ajaran: string | null
+    } | null = null
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
+    try {
+      const { data, error } = await getSupabaseAdmin()
+        .from('kelas')
+        .select('id, nama_kelas, tingkat, tahun_ajaran')
+        .eq('wali_kelas_id', auth.userId)
+        .limit(1)
 
-    const assignments = (data ?? []).map((r) => {
-      const row = r as unknown as MengajarRow
-      const mapel = Array.isArray(row.mata_pelajaran) ? row.mata_pelajaran[0] : row.mata_pelajaran
-      const kelas = Array.isArray(row.kelas) ? row.kelas[0] : row.kelas
-      return {
-        id: row.id,
-        mapel_id: row.mapel_id,
-        mapel_nama: mapel?.nama ?? null,
-        mapel_kode: mapel?.kode ?? null,
-        kelas_id: row.kelas_id,
-        kelas_nama: kelas?.nama_kelas ?? null,
-        tingkat: kelas?.tingkat ?? null,
-        tahun_ajaran: kelas?.tahun_ajaran ?? null,
-        semester: row.semester ?? null,
-        materi: row.materi ?? null
-      }
-    })
-
-    // Total baris presensi milik guru ini (semua kelas & tanggal)
-    const assignmentIds = assignments.map((a) => a.id)
-    let presensiTerkirim = 0
-    if (assignmentIds.length > 0) {
-      const { count } = await getSupabaseAdmin()
-        .from('presensi')
-        .select('id', { count: 'exact', head: true })
-        .in('guru_mengajar_id', assignmentIds)
-      presensiTerkirim = count ?? 0
-    }
-
-    // Kelas di mana guru ini menjadi wali kelas (berbeda dari penugasan pengampu)
-    const { data: waliRows, error: waliError } = await getSupabaseAdmin()
-      .from('kelas')
-      .select('id, nama_kelas, tingkat, tahun_ajaran, jurusan:jurusan(kode, nama)')
-      .eq('wali_kelas_id', user.id)
-      .eq('status', true)
-
-    let waliKelas: { id: string; nama_kelas: string; tingkat: number; tahun_ajaran: string; jurusan_nama: string | null } | null = null
-    if (waliError) {
-      console.error('Gagal memuat wali kelas:', waliError.message)
-    } else {
-      const row = (waliRows ?? [])[0]
-      if (row) {
-        const jurusanRaw = (row as unknown as { jurusan?: { kode: string; nama: string } | { kode: string; nama: string }[] | null }).jurusan
-        const jurusan = Array.isArray(jurusanRaw) ? jurusanRaw[0] : jurusanRaw
+      if (!error && data && data.length > 0) {
         waliKelas = {
-          id: row.id,
-          nama_kelas: row.nama_kelas,
-          tingkat: row.tingkat,
-          tahun_ajaran: row.tahun_ajaran,
-          jurusan_nama: jurusan ? `${jurusan.kode} - ${jurusan.nama}` : null,
+          kelas_id: data[0].id,
+          nama_kelas: data[0].nama_kelas ?? null,
+          tingkat: data[0].tingkat ?? null,
+          tahun_ajaran: data[0].tahun_ajaran ?? null,
         }
       }
+    } catch {
+      // Kolom wali_kelas_id belum ada di tabel kelas — abaikan (fitur wali kelas tersembunyi).
     }
 
-    return NextResponse.json({ assignments, presensi_terkirim: presensiTerkirim, wali_kelas: waliKelas })
+    return NextResponse.json({ assignments, wali_kelas: waliKelas })
   } catch (err) {
-    console.error('Error listing teacher mengajar:', err)
+    console.error('Error listing teacher assignments:', err)
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
       { status: 500 }

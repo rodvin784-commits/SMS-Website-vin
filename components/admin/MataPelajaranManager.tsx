@@ -91,26 +91,21 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
     kelas_nama: string
     tingkat: number | null
     tahun_ajaran: string | null
-    semester: string | null
-    materi: string | null
   }
   type GuruOption = { id: string; nama_lengkap: string; alreadyAssigned: boolean }
   type KelasOption = { id: string; nama_kelas: string; tingkat: number }
-  type SemesterOption = { value: string; label: string }
 
   const [penugasanAssignments, setPenugasanAssignments] = useState<PenugasanItem[]>([])
   const [penugasanGuru, setPenugasanGuru] = useState<GuruOption[]>([])
   const [penugasanKelas, setPenugasanKelas] = useState<KelasOption[]>([])
-  const [penugasanSemesters, setPenugasanSemesters] = useState<SemesterOption[]>([])
+  const [tahunAjaranOptions, setTahunAjaranOptions] = useState<string[]>([])
   const [penugasanLoading, setPenugasanLoading] = useState(false)
   const [newGuruId, setNewGuruId] = useState('')
   const [newKelasId, setNewKelasId] = useState('')
-  const [newMateri, setNewMateri] = useState('')
-  const [newSemester, setNewSemester] = useState('ganjil')
+  const [newTahunAjaran, setNewTahunAjaran] = useState('')
   const [addingPenugasan, setAddingPenugasan] = useState(false)
-  const [editingMateriId, setEditingMateriId] = useState<string | null>(null)
-  const [materiDraft, setMateriDraft] = useState('')
-  const [semesterDraft, setSemesterDraft] = useState('ganjil')
+  const [editingTahunId, setEditingTahunId] = useState<string | null>(null)
+  const [tahunDraft, setTahunDraft] = useState('')
   // Feedback level modal detail (terpisah agar tidak saling mengganggu)
   const { feedback: detailFeedback, showFeedback: showDetailFeedback, setFeedback: setDetailFeedback } = useFeedback()
 
@@ -128,10 +123,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       setPenugasanAssignments(assignments)
       setPenugasanGuru(data.guru ?? [])
       setPenugasanKelas(data.kelas ?? [])
-      setPenugasanSemesters(data.semesters ?? [
-        { value: 'ganjil', label: 'Semester Ganjil' },
-        { value: 'genap', label: 'Semester Genap' },
-      ])
+      setTahunAjaranOptions(data.tahunAjaranOptions ?? [])
 
       // Sync detailItem's guru pengampu & kelas list so the modal stays current
       setDetailItem((prev) => {
@@ -177,7 +169,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       const res = await fetch(`/api/admin/mata-pelajaran/${mapelId}/penugasan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guru_id: newGuruId, kelas_id: newKelasId, materi: newMateri, semester: newSemester }),
+        body: JSON.stringify({ guru_id: newGuruId, kelas_id: newKelasId, tahun_ajaran: newTahunAjaran }),
       })
 
       const result = await res.json()
@@ -186,7 +178,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       showDetailFeedback('success', result.message || 'Penugasan berhasil ditambahkan')
       setNewGuruId('')
       setNewKelasId('')
-      setNewMateri('')
+      setNewTahunAjaran('')
       await fetchPenugasan(mapelId)
       await refreshData() // refresh table data too
     } catch (err) {
@@ -194,7 +186,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
     } finally {
       setAddingPenugasan(false)
     }
-  }, [newGuruId, newKelasId, newMateri, newSemester, fetchPenugasan, refreshData, showDetailFeedback, setDetailFeedback])
+  }, [newGuruId, newKelasId, newTahunAjaran, fetchPenugasan, refreshData, showDetailFeedback, setDetailFeedback])
 
   // Delete penugasan
   const handleDeletePenugasan = useCallback(async (mapelId: string, assignmentId: string) => {
@@ -217,36 +209,35 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
     }
   }, [fetchPenugasan, refreshData, showDetailFeedback, setDetailFeedback])
 
-  // Edit materi penugasan
-  const startEditMateri = (assignment: PenugasanItem) => {
-    setEditingMateriId(assignment.id)
-    setMateriDraft(assignment.materi ?? '')
-    setSemesterDraft(assignment.semester ?? 'ganjil')
+  // Edit tahun ajaran penugasan
+  const startEditTahunAjaran = (assignment: PenugasanItem) => {
+    setEditingTahunId(assignment.id)
+    setTahunDraft(assignment.tahun_ajaran ?? '')
   }
 
-  const handleUpdateMateri = useCallback(async (mapelId: string) => {
-    if (!editingMateriId) return
+  const handleUpdateTahunAjaran = useCallback(async (mapelId: string) => {
+    if (!editingTahunId) return
 
     setDetailFeedback(null)
     try {
       const res = await fetch(`/api/admin/mata-pelajaran/${mapelId}/penugasan`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingMateriId, materi: materiDraft, semester: semesterDraft }),
+        body: JSON.stringify({ id: editingTahunId, tahun_ajaran: tahunDraft }),
       })
 
       const result = await res.json()
-      if (!res.ok) throw new Error(result.error || 'Gagal memperbarui materi')
+      if (!res.ok) throw new Error(result.error || 'Gagal memperbarui penugasan')
 
       showDetailFeedback('success', result.message || 'Pembaruan berhasil disimpan')
-      setEditingMateriId(null)
-      setMateriDraft('')
+      setEditingTahunId(null)
+      setTahunDraft('')
       await fetchPenugasan(mapelId)
       await refreshData()
     } catch (err) {
       showDetailFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
     }
-  }, [editingMateriId, materiDraft, semesterDraft, fetchPenugasan, refreshData, showDetailFeedback, setDetailFeedback])
+  }, [editingTahunId, tahunDraft, fetchPenugasan, refreshData, showDetailFeedback, setDetailFeedback])
 
   // Filter data
   const filteredData = data
@@ -268,11 +259,9 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
     setDetailFeedback(null)
     setNewGuruId('')
     setNewKelasId('')
-    setNewMateri('')
-    setNewSemester('ganjil')
-    setEditingMateriId(null)
-    setMateriDraft('')
-    setSemesterDraft('ganjil')
+    setNewTahunAjaran('')
+    setEditingTahunId(null)
+    setTahunDraft('')
     try {
       const res = await fetch('/api/admin/mata-pelajaran')
       if (res.ok) {
@@ -703,65 +692,41 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
                             {a.kelas_nama}
                           </span>
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700">
-                            Semester {a.semester === 'genap' ? 'Genap' : 'Ganjil'}
-                            {a.tahun_ajaran ? ` · ${a.tahun_ajaran}` : ''}
+                            {a.tahun_ajaran ? `Tahun Ajaran ${a.tahun_ajaran}` : 'Tahun ajaran belum diatur'}
                           </span>
-                          {editingMateriId === a.id ? (
+                          {editingTahunId === a.id ? (
                             <span className="flex items-center gap-1.5 flex-wrap">
                               <input
                                 type="text"
-                                value={materiDraft}
-                                onChange={(e) => setMateriDraft(e.target.value)}
-                                placeholder="Materi / bahan ajar"
+                                value={tahunDraft}
+                                onChange={(e) => setTahunDraft(e.target.value)}
+                                placeholder="cth: 2025/2026"
                                 autoFocus
                                 className="px-2.5 py-1 text-xs bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                               />
-                              <select
-                                value={semesterDraft}
-                                onChange={(e) => setSemesterDraft(e.target.value)}
-                                className="px-2 py-1 text-xs bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                              >
-                                {penugasanSemesters.length > 0
-                                  ? penugasanSemesters.map((s) => (
-                                      <option key={s.value} value={s.value}>{s.label}</option>
-                                    ))
-                                  : (
-                                    <>
-                                      <option value="ganjil">Semester Ganjil</option>
-                                      <option value="genap">Semester Genap</option>
-                                    </>
-                                  )}
-                              </select>
                               <button
-                                onClick={() => handleUpdateMateri(detailItem.id)}
+                                onClick={() => handleUpdateTahunAjaran(detailItem.id)}
                                 className="px-2 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-all"
                               >
                                 Simpan
                               </button>
                               <button
-                                onClick={() => setEditingMateriId(null)}
+                                onClick={() => setEditingTahunId(null)}
                                 className="px-2 py-1 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all"
                               >
                                 Batal
                               </button>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1">
-                              {a.materi ? (
-                                <span className="text-xs text-gray-600 italic">Materi: {a.materi}</span>
-                              ) : (
-                                <span className="text-xs text-gray-300 italic">Belum ada materi</span>
-                              )}
-                              {detailMode === 'manage' && (
-                                <button
-                                  onClick={() => startEditMateri(a)}
-                                  className="p-0.5 text-gray-400 hover:text-blue-600 rounded transition-all"
-                                  title="Edit Materi / Semester"
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </button>
-                              )}
-                            </span>
+                            detailMode === 'manage' && (
+                              <button
+                                onClick={() => startEditTahunAjaran(a)}
+                                className="p-0.5 text-gray-400 hover:text-blue-600 rounded transition-all"
+                                title="Edit Tahun Ajaran"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                            )
                           )}
                         </div>
                       </div>
@@ -818,30 +783,27 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
                       ))}
                     </select>
                   </div>
-                  <input
-                    type="text"
-                    value={newMateri}
-                    onChange={(e) => setNewMateri(e.target.value)}
-                    placeholder="Materi / bahan ajar (opsional — contoh: Bab 1 Bilangan)"
-                    className="mt-3 w-full px-4 py-2.5 bg-white border border-blue-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                  <div className="mt-3 flex flex-col sm:flex-row gap-3">
+                  {tahunAjaranOptions.length > 0 ? (
                     <select
-                      value={newSemester}
-                      onChange={(e) => setNewSemester(e.target.value)}
-                      className="flex-1 px-4 py-2.5 bg-white border border-blue-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      value={newTahunAjaran}
+                      onChange={(e) => setNewTahunAjaran(e.target.value)}
+                      className="mt-3 w-full px-4 py-2.5 bg-white border border-blue-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                     >
-                      {penugasanSemesters.length > 0
-                        ? penugasanSemesters.map((s) => (
-                            <option key={s.value} value={s.value}>{s.label}</option>
-                          ))
-                        : (
-                          <>
-                            <option value="ganjil">Semester Ganjil</option>
-                            <option value="genap">Semester Genap</option>
-                          </>
-                        )}
+                      <option value="">-- Tahun Ajaran (opsional) --</option>
+                      {tahunAjaranOptions.map((ta) => (
+                        <option key={ta} value={ta}>{ta}</option>
+                      ))}
                     </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={newTahunAjaran}
+                      onChange={(e) => setNewTahunAjaran(e.target.value)}
+                      placeholder="Tahun Ajaran (opsional — contoh: 2025/2026)"
+                      className="mt-3 w-full px-4 py-2.5 bg-white border border-blue-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  )}
+                  <div className="mt-3 flex flex-col sm:flex-row gap-3">
                     <Button
                       onClick={() => handleAddPenugasan(detailItem.id)}
                       loading={addingPenugasan}

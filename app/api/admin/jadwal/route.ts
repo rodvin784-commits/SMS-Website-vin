@@ -3,37 +3,13 @@ import type { NextRequest } from 'next/server'
 import { adminCheck, getSupabaseAdmin } from '@/lib/supabase-server'
 import { denyResponse, serverError } from '@/lib/api-admin'
 
-const HARI_VALID: readonly number[] = [1, 2, 3, 4, 5, 6] // 1=Senin ... 6=Sabtu
-const HARI_LABEL: Record<number, string> = {
-  1: 'Senin',
-  2: 'Selasa',
-  3: 'Rabu',
-  4: 'Kamis',
-  5: 'Jumat',
-  6: 'Sabtu',
-}
+const HARI_VALID: readonly string[] = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 function parseJam(value: unknown): string | null {
   if (typeof value !== 'string' || !TIME_RE.test(value.trim())) return null
   return value.trim()
-}
-
-type JadwalRow = {
-  id: string
-  hari: number
-  jam_mulai: string
-  jam_selesai: string
-  ruangan: string | null
-  guru_mengajar_id: string
-  guru_mengajar: {
-    semester: string | null
-    materi: string | null
-    profiles: { nama_lengkap: string } | { nama_lengkap: string }[] | null
-    mata_pelajaran: { nama: string; kode: string } | { nama: string; kode: string }[] | null
-    kelas: { id: string; nama_kelas: string; tingkat: number } | { id: string; nama_kelas: string; tingkat: number }[] | null
-  } | null
 }
 
 const pickOne = <T,>(v: T[] | T | null | undefined): T | null =>
@@ -51,12 +27,8 @@ export async function GET(request: NextRequest) {
     const kelasId = searchParams.get('kelas_id')
 
     if (!kelasId) {
-      // Mode opsi: penugasan guru_mengajar aktif + daftar kelas
-      const [{ data: penugasan, error: pError }, { data: kelas, error: kError }] = await Promise.all([
-        supabaseAdmin
-          .from('guru_mengajar')
-          .select('id, semester, mata_pelajaran(nama, kode), profiles(nama_lengkap), kelas(id, nama_kelas, tingkat)')
-          .order('created_at', { ascending: true }),
+      // Mode opsi: penugasan guru_kelas aktif + daftar kelas aktif
+      const [{ data: kelas, error: kError }] = await Promise.all([
         supabaseAdmin
           .from('kelas')
           .select('id, nama_kelas, tingkat')
@@ -65,92 +37,131 @@ export async function GET(request: NextRequest) {
           .order('nama_kelas', { ascending: true }),
       ])
 
-      if (pError || kError) {
-        return NextResponse.json({ error: pError?.message || kError?.message }, { status: 400 })
+      if (kError) {
+        return NextResponse.json({ error: kError.message }, { status: 400 })
       }
 
-      type PenugasanOpts = {
+      const activeKelas = (kelas ?? []) as { id: string; nama_kelas: string; tingkat: number }[]
+      const activeKelasIds = activeKelas.map((k) => k.id)
+
+      type GuruKelasRow = {
         id: string
-        semester: string | null
+        guru_id: string
+        mata_pelajaran_id: string
+        kelas_id: string
+        tahun_ajaran: string | null
+        guru: { nama_lengkap: string } | { nama_lengkap: string }[] | null
         mata_pelajaran: { nama: string; kode: string } | { nama: string; kode: string }[] | null
-        profiles: { nama_lengkap: string } | { nama_lengkap: string }[] | null
-        kelas: { id: string; nama_kelas: string; tingkat: number } | { id: string; nama_kelas: string; tingkat: number }[] | null
       }
 
-      const penugasanOptions = ((penugasan ?? []) as PenugasanOpts[]).map((p) => {
+      const penugasanQuery = supabaseAdmin
+        .from('guru_kelas')
+        .select(`
+          id,
+          guru_id,
+          mata_pelajaran_id,
+          kelas_id,
+          tahun_ajaran,
+          guru(nama_lengkap),
+          mata_pelajaran(nama, kode)
+        `)
+
+      let query = penugasanQuery
+      if (activeKelasIds.length > 0) {
+        query = penugasanQuery.in('kelas_id', activeKelasIds)
+      }
+
+      const { data: penugasan, error: pError } = await query.order('created_at', { ascending: true })
+
+      if (pError) {
+        return NextResponse.json({ error: pError.message }, { status: 400 })
+      }
+
+      const penugasanOptions = ((penugasan ?? []) as unknown as GuruKelasRow[]).map((p) => {
         const mapel = pickOne(p.mata_pelajaran)
-        const guru = pickOne(p.profiles)
-        const kelasRow = pickOne(p.kelas)
+        const guru = pickOne(p.guru)
+        const kelasRow = activeKelas.find((k) => k.id === p.kelas_id)
         return {
-          guru_mengajar_id: p.id,
+          guru_kelas_id: p.id,
           label: `${mapel?.nama ?? '-'} — ${guru?.nama_lengkap ?? 'Tanpa Nama'}${kelasRow ? ` (Kelas ${kelasRow.tingkat} ${kelasRow.nama_kelas})` : ''}`,
-          semester: p.semester ?? 'ganjil',
-          kelas_id: kelasRow?.id ?? null,
+          tahun_ajaran: p.tahun_ajaran ?? null,
+          kelas_id: p.kelas_id,
           mapel_nama: mapel?.nama ?? null,
           guru_nama: guru?.nama_lengkap ?? null,
         }
       })
 
       return NextResponse.json({
-        kelas: kelas ?? [],
+        kelas: activeKelas,
         penugasan: penugasanOptions,
-        hari: HARI_VALID.map((h) => ({ value: h, label: HARI_LABEL[h] })),
+        hari: HARI_VALID.map((h) => ({ value: h, label: h })),
       })
     }
 
     // Mode jadwal per kelas
     const { data, error } = await supabaseAdmin
-      .from('jadwal_pelajaran')
+      .from('jadwal')
       .select(`
-        id, hari, jam_mulai, jam_selesai, ruangan, guru_mengajar_id,
-        guru_mengajar(
-          semester, materi,
-          profiles(nama_lengkap),
-          mata_pelajaran(nama, kode),
-          kelas(id, nama_kelas, tingkat)
-        )
+        id, hari, jam_mulai, jam_selesai, ruangan, tahun_ajaran,
+        guru_id, mata_pelajaran_id, kelas_id,
+        guru(nama_lengkap),
+        mata_pelajaran(nama, kode)
       `)
-      .order('hari', { ascending: true })
+      .eq('kelas_id', kelasId)
       .order('jam_mulai', { ascending: true })
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    const rows = (data ?? []) as unknown as JadwalRow[]
-    const jadwal = rows
+    type JadwalRow = {
+      id: string
+      hari: string | null
+      jam_mulai: string | null
+      jam_selesai: string | null
+      ruangan: string | null
+      tahun_ajaran: string | null
+      guru_id: string
+      mata_pelajaran_id: string
+      kelas_id: string
+      guru: { nama_lengkap: string } | { nama_lengkap: string }[] | null
+      mata_pelajaran: { nama: string; kode: string } | { nama: string; kode: string }[] | null
+    }
+
+    const hariOrder = (h: string | null): number => {
+      const idx = HARI_VALID.indexOf(h ?? '')
+      return idx === -1 ? 99 : idx
+    }
+
+    const jadwal = ((data ?? []) as unknown as JadwalRow[])
       .map((r) => {
-        const g = r.guru_mengajar
-        const mapel = pickOne(g?.mata_pelajaran)
-        const guru = pickOne(g?.profiles)
-        const kelasRow = pickOne(g?.kelas)
+        const mapel = pickOne(r.mata_pelajaran)
+        const guru = pickOne(r.guru)
         return {
           id: r.id,
-          guru_mengajar_id: r.guru_mengajar_id,
-          hari: r.hari,
-          hari_label: HARI_LABEL[r.hari] ?? '-',
-          jam_mulai: r.jam_mulai.slice(0, 5),
-          jam_selesai: r.jam_selesai.slice(0, 5),
+          hari: r.hari ?? '',
+          jam_mulai: (r.jam_mulai ?? '').slice(0, 5),
+          jam_selesai: (r.jam_selesai ?? '').slice(0, 5),
           ruangan: r.ruangan,
-          semester: g?.semester ?? 'ganjil',
+          tahun_ajaran: r.tahun_ajaran ?? null,
+          guru_id: r.guru_id,
+          mata_pelajaran_id: r.mata_pelajaran_id,
+          kelas_id: r.kelas_id,
           mapel_nama: mapel?.nama ?? null,
           mapel_kode: mapel?.kode ?? null,
           guru_nama: guru?.nama_lengkap ?? null,
-          kelas_id: kelasRow?.id ?? null,
-          kelas_nama: kelasRow?.nama_kelas ?? null,
-          tingkat: kelasRow?.tingkat ?? null,
         }
       })
-      .filter((j) => j.kelas_id === kelasId)
+      .sort((a, b) => hariOrder(a.hari) - hariOrder(b.hari))
 
-    return NextResponse.json({ jadwal, hari: HARI_LABEL })
+    return NextResponse.json({ jadwal })
   } catch (err) {
     return serverError(err, 'Error listing jadwal:')
   }
 }
 
 // POST /api/admin/jadwal
-// Body: { guru_mengajar_id, hari, jam_mulai, jam_selesai, ruangan? }
+// Body: { guru_kelas_id, hari, jam_mulai, jam_selesai, ruangan? }
 export async function POST(request: Request) {
   try {
     const auth = await adminCheck()
@@ -158,10 +169,9 @@ export async function POST(request: Request) {
 
     const supabaseAdmin = getSupabaseAdmin()
     const body = await request.json()
-    const { guru_mengajar_id, hari, jam_mulai, jam_selesai, ruangan } = body
+    const { guru_kelas_id, hari, jam_mulai, jam_selesai, ruangan } = body
 
-    const hariNum = Number(hari)
-    if (!HARI_VALID.includes(hariNum)) {
+    if (!HARI_VALID.includes(hari)) {
       return NextResponse.json({ error: 'Hari tidak valid' }, { status: 400 })
     }
 
@@ -174,64 +184,75 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Jam selesai harus lebih besar dari jam mulai' }, { status: 400 })
     }
 
-    // Pastikan penugasan ada dan ambil kelas_id-nya
-    const { data: penugasan } = await supabaseAdmin
-      .from('guru_mengajar')
-      .select('id, kelas_id')
-      .eq('id', guru_mengajar_id)
+    // Pastikan penugasan ada dan ambil guru/mapel/kelas/tahun ajaran-nya
+    const { data: penugasan, error: penugasanError } = await supabaseAdmin
+      .from('guru_kelas')
+      .select('id, guru_id, mata_pelajaran_id, kelas_id, tahun_ajaran')
+      .eq('id', guru_kelas_id)
       .maybeSingle()
 
+    if (penugasanError) {
+      return NextResponse.json({ error: penugasanError.message }, { status: 400 })
+    }
     if (!penugasan) {
       return NextResponse.json({ error: 'Penugasan guru tidak ditemukan' }, { status: 400 })
     }
 
+    if (!penugasan.tahun_ajaran) {
+      return NextResponse.json(
+        { error: 'Penugasan belum punya tahun ajaran. Atur tahun ajaran di halaman Mata Pelajaran terlebih dahulu.' },
+        { status: 400 }
+      )
+    }
+
     // Cek bentrok di kelas yang sama (waktu tumpang tindih pada hari yang sama)
-    const { data: bentrokKelas } = await supabaseAdmin
-      .from('jadwal_pelajaran')
+    const { data: bentrokKelas, error: kbError } = await supabaseAdmin
+      .from('jadwal')
       .select('id')
-      .eq('hari', hariNum)
+      .eq('hari', hari)
+      .eq('kelas_id', penugasan.kelas_id)
       .lt('jam_mulai', selesai)
       .gt('jam_selesai', mulai)
-      .in(
-        'guru_mengajar_id',
-        (await supabaseAdmin.from('guru_mengajar').select('id').eq('kelas_id', penugasan.kelas_id)).data?.map((r: { id: string }) => r.id) ?? ['']
-      )
+
+    if (kbError) {
+      return NextResponse.json({ error: kbError.message }, { status: 400 })
+    }
 
     if ((bentrokKelas ?? []).length > 0) {
       return NextResponse.json(
-        { error: `Bentrok: kelas ini sudah ada jadwal pada ${HARI_LABEL[hariNum]} jam ${mulai}-${selesai}` },
+        { error: `Bentrok: kelas ini sudah ada jadwal pada ${hari} jam ${mulai}-${selesai}` },
         { status: 400 }
       )
     }
 
     // Cek bentrok untuk guru yang sama
-    const { data: bentrokGuru } = await supabaseAdmin
-      .from('jadwal_pelajaran')
+    const { data: bentrokGuru, error: gbError } = await supabaseAdmin
+      .from('jadwal')
       .select('id')
-      .eq('hari', hariNum)
+      .eq('hari', hari)
+      .eq('guru_id', penugasan.guru_id)
       .lt('jam_mulai', selesai)
       .gt('jam_selesai', mulai)
-      .in(
-        'guru_mengajar_id',
-        (await supabaseAdmin
-          .from('guru_mengajar')
-          .select('id')
-          .eq('guru_id', (await supabaseAdmin.from('guru_mengajar').select('guru_id').eq('id', guru_mengajar_id).maybeSingle()).data?.guru_id ?? '')
-        ).data?.map((r: { id: string }) => r.id) ?? ['']
-      )
+
+    if (gbError) {
+      return NextResponse.json({ error: gbError.message }, { status: 400 })
+    }
 
     if ((bentrokGuru ?? []).length > 0) {
       return NextResponse.json(
-        { error: `Bentrok: guru ini sudah mengajar di waktu tersebut (${HARI_LABEL[hariNum]} ${mulai}-${selesai})` },
+        { error: `Bentrok: guru ini sudah mengajar di waktu tersebut (${hari} ${mulai}-${selesai})` },
         { status: 400 }
       )
     }
 
     const { data: result, error: insertError } = await supabaseAdmin
-      .from('jadwal_pelajaran')
+      .from('jadwal')
       .insert({
-        guru_mengajar_id,
-        hari: hariNum,
+        guru_id: penugasan.guru_id,
+        mata_pelajaran_id: penugasan.mata_pelajaran_id,
+        kelas_id: penugasan.kelas_id,
+        tahun_ajaran: penugasan.tahun_ajaran,
+        hari,
         jam_mulai: mulai,
         jam_selesai: selesai,
         ruangan: typeof ruangan === 'string' && ruangan.trim() !== '' ? ruangan.trim() : null,
@@ -244,7 +265,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { message: `Jadwal berhasil ditambahkan (${HARI_LABEL[hariNum]} ${mulai}-${selesai})`, jadwal: result },
+      { message: `Jadwal berhasil ditambahkan (${hari} ${mulai}-${selesai})`, jadwal: result },
       { status: 201 }
     )
   } catch (err) {
@@ -266,7 +287,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID jadwal wajib diisi' }, { status: 400 })
     }
 
-    const { error } = await supabaseAdmin.from('jadwal_pelajaran').delete().eq('id', id)
+    const { error } = await supabaseAdmin.from('jadwal').delete().eq('id', id)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })

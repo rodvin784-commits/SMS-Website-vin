@@ -15,6 +15,8 @@ export type Profile = {
   role: string
   status: boolean
   created_at: string
+  nip?: string | null
+  nis?: string | null
   kelas_id?: string | null
   kelas_nama?: string | null
 }
@@ -153,6 +155,10 @@ export function UserTable({
                     ) : (
                       <span className="text-xs text-gray-400">Belum di kelas</span>
                     )
+                  ) : user.nip ? (
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">
+                      NIP: {user.nip}
+                    </span>
                   ) : (
                     <span className="text-xs text-gray-300">—</span>
                   )}

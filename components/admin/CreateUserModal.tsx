@@ -13,6 +13,8 @@ interface CreateUserFormData {
   password: string
   role: 'guru' | 'siswa'
   kelas_id: string
+  nip: string
+  nis: string
 }
 
 interface CreateUserModalProps {
@@ -34,6 +36,8 @@ export function CreateUserModal({
     password: '',
     role: 'guru',
     kelas_id: '',
+    nip: '',
+    nis: '',
   })
 
   const { kelasOptions, loading: loadingKelas } = useKelasOptions(isOpen)
@@ -42,7 +46,7 @@ export function CreateUserModal({
   useEffect(() => {
     if (!isOpen) return
     const raf = requestAnimationFrame(() => {
-      setFormData({ nama_lengkap: '', email: '', password: '', role: 'guru', kelas_id: '' })
+      setFormData({ nama_lengkap: '', email: '', password: '', role: 'guru', kelas_id: '', nip: '', nis: '' })
     })
     return () => cancelAnimationFrame(raf)
   }, [isOpen])
@@ -151,11 +155,42 @@ export function CreateUserModal({
           </div>
         </div>
 
+        {/* NIP (khusus guru) */}
+        {formData.role === 'guru' && (
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              NIP <span className="text-gray-400 font-medium normal-case">(opsional)</span>
+            </label>
+            <Input
+              type="text"
+              placeholder="Contoh: 198512152010011020"
+              value={formData.nip}
+              onChange={handleChange('nip')}
+            />
+          </div>
+        )}
+
+        {/* NIS (khusus siswa) */}
+        {formData.role === 'siswa' && (
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              NIS <span className="text-red-500">*</span>
+            </label>
+            <Input
+              type="text"
+              placeholder="Contoh: 1234567890"
+              value={formData.nis}
+              onChange={handleChange('nis')}
+              required
+            />
+          </div>
+        )}
+
         {/* Kelas (khusus siswa) */}
         {formData.role === 'siswa' && (
           <div className="space-y-1.5">
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
-              Kelas <span className="text-gray-400 font-medium normal-case">(opsional)</span>
+              Kelas <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <select
@@ -163,8 +198,9 @@ export function CreateUserModal({
                 onChange={(e) => setFormData((prev) => ({ ...prev, kelas_id: e.target.value }))}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 cursor-pointer disabled:opacity-60"
                 disabled={loadingKelas}
+                required
               >
-                <option value="">-- Pilih Kelas (opsional) --</option>
+                <option value="">-- Pilih Kelas --</option>
                 {kelasOptions.map((k) => (
                   <option key={k.id} value={k.id}>
                     Kelas {k.tingkat} {k.nama_kelas}

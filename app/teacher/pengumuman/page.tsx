@@ -4,19 +4,11 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
-import { BookOpen, Calendar, ClipboardList, FileText, LayoutDashboard, Video } from 'lucide-react'
-import { PresensiManager } from '@/components/teacher'
+import { teacherNavItems } from '@/lib/teacher-nav'
+import { BookOpen } from 'lucide-react'
+import { PengumumanManager } from '@/components/teacher'
 
-const navItems = [
-  { href: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/teacher/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran' },
-  { href: '/teacher/materi', icon: Video, label: 'Materi & Video' },
-  { href: '/teacher/presensi', icon: ClipboardList, label: 'Presensi Siswa' },
-  { href: '/teacher/jadwal', icon: Calendar, label: 'Jadwal Mengajar' },
-  { href: '/teacher/nilai', icon: FileText, label: 'Nilai Siswa' },
-]
-
-export default function TeacherPresensiPage() {
+export default function TeacherPengumumanPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [teacherName, setTeacherName] = useState('Guru')
@@ -35,7 +27,7 @@ export default function TeacherPresensiPage() {
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('nama_lengkap, role, status')
           .eq('id', session.user.id)
           .maybeSingle()
 
@@ -82,19 +74,19 @@ export default function TeacherPresensiPage() {
     <AppShell
       role="teacher"
       userName={teacherName}
-      navItems={navItems}
+      navItems={teacherNavItems}
       onLogout={handleLogout}
       logoIcon={<BookOpen className="h-6 w-6 text-emerald-400" />}
     >
       <div className="max-w-5xl mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Presensi Siswa</h1>
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Pengumuman</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Pilih mapel & kelas, tentukan tanggal, lalu isi kehadiran setiap siswa.
+            Kirim pengumuman ke kelas-kelas yang Anda ampu.
           </p>
         </div>
 
-        <PresensiManager />
+        <PengumumanManager />
       </div>
     </AppShell>
   )

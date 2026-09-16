@@ -16,9 +16,9 @@ interface KelasOption {
 }
 
 interface PenugasanOption {
-  guru_mengajar_id: string
+  guru_kelas_id: string
   label: string
-  semester: string
+  tahun_ajaran: string | null
   kelas_id: string | null
   mapel_nama: string | null
   guru_nama: string | null
@@ -26,29 +26,20 @@ interface PenugasanOption {
 
 interface JadwalItem {
   id: string
-  guru_mengajar_id: string
-  hari: number
-  hari_label: string
+  hari: string
   jam_mulai: string
   jam_selesai: string
   ruangan: string | null
-  semester: string
+  tahun_ajaran: string | null
+  guru_id: string
+  mata_pelajaran_id: string
+  kelas_id: string
   mapel_nama: string | null
   mapel_kode: string | null
   guru_nama: string | null
-  kelas_nama: string | null
-  tingkat: number | null
 }
 
-const HARI_ORDER = [1, 2, 3, 4, 5, 6]
-const HARI_LABEL: Record<number, string> = {
-  1: 'Senin',
-  2: 'Selasa',
-  3: 'Rabu',
-  4: 'Kamis',
-  5: 'Jumat',
-  6: 'Sabtu',
-}
+const HARI_ORDER = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 
 export function JadwalManager() {
   const [kelasOptions, setKelasOptions] = useState<KelasOption[]>([])
@@ -62,7 +53,7 @@ export function JadwalManager() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
-    guru_mengajar_id: '',
+    guru_kelas_id: '',
     hari: '',
     jam_mulai: '',
     jam_selesai: '',
@@ -127,7 +118,7 @@ export function JadwalManager() {
   }, [penugasanOptions, selectedKelasId])
 
   const resetForm = () => {
-    setForm({ guru_mengajar_id: '', hari: '', jam_mulai: '', jam_selesai: '', ruangan: '' })
+    setForm({ guru_kelas_id: '', hari: '', jam_mulai: '', jam_selesai: '', ruangan: '' })
   }
 
   const openModal = () => {
@@ -143,7 +134,7 @@ export function JadwalManager() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
-    if (!form.guru_mengajar_id || !form.hari || !form.jam_mulai || !form.jam_selesai) {
+    if (!form.guru_kelas_id || !form.hari || !form.jam_mulai || !form.jam_selesai) {
       showFeedback('error', 'Lengkapi penugasan, hari, dan jam mulai-selesai')
       return
     }
@@ -154,8 +145,8 @@ export function JadwalManager() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          guru_mengajar_id: form.guru_mengajar_id,
-          hari: Number(form.hari),
+          guru_kelas_id: form.guru_kelas_id,
+          hari: form.hari,
           jam_mulai: form.jam_mulai,
           jam_selesai: form.jam_selesai,
           ruangan: form.ruangan?.trim() || null,
@@ -199,7 +190,7 @@ export function JadwalManager() {
   const selectedKelas = kelasOptions.find((k) => k.id === selectedKelasId)
 
   const jadwalPerHari = useMemo(() => {
-    const map = new Map<number, JadwalItem[]>()
+    const map = new Map<string, JadwalItem[]>()
     HARI_ORDER.forEach((h) => map.set(h, []))
     jadwal.forEach((item) => {
       map.get(item.hari)?.push(item)
@@ -277,7 +268,7 @@ export function JadwalManager() {
             return (
               <div key={hari} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-gray-900">{HARI_LABEL[hari]}</h3>
+                  <h3 className="text-sm font-bold text-gray-900">{hari}</h3>
                   <span className="text-xs font-semibold text-gray-400">{items.length}</span>
                 </div>
                 <div className="space-y-2">
@@ -340,14 +331,14 @@ export function JadwalManager() {
               Penugasan Guru
             </label>
             <Select
-              value={form.guru_mengajar_id}
-              onChange={(e) => setForm((prev) => ({ ...prev, guru_mengajar_id: e.target.value }))}
+              value={form.guru_kelas_id}
+              onChange={(e) => setForm((prev) => ({ ...prev, guru_kelas_id: e.target.value }))}
               placeholder=" -- Pilih Penugasan (Mapel — Guru) -- "
-              options={penugasanKelas.map((p) => ({ value: p.guru_mengajar_id, label: p.label }))}
+              options={penugasanKelas.map((p) => ({ value: p.guru_kelas_id, label: p.label }))}
             />
-            {form.guru_mengajar_id && (
+            {form.guru_kelas_id && (
               <p className="text-xs text-gray-500 mt-1.5">
-                Semester {penugasanKelas.find((p) => p.guru_mengajar_id === form.guru_mengajar_id)?.semester}
+                Tahun Ajaran {penugasanKelas.find((p) => p.guru_kelas_id === form.guru_kelas_id)?.tahun_ajaran ?? '-'}
               </p>
             )}
           </div>
@@ -358,7 +349,7 @@ export function JadwalManager() {
               value={form.hari}
               onChange={(e) => setForm((prev) => ({ ...prev, hari: e.target.value }))}
               placeholder=" -- Pilih Hari -- "
-              options={HARI_ORDER.map((h) => ({ value: String(h), label: HARI_LABEL[h] }))}
+              options={HARI_ORDER.map((h) => ({ value: h, label: h }))}
             />
           </div>
 

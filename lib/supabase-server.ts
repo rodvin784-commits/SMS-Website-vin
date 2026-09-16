@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 
 // Klien service-role (bypass RLS). Kunci diambil dari SUPABASE_SERVICE_ROLE_KEY
 // (legacy) atau SUPABASE_SECRET_KEY (format baru sb_secret_...).
@@ -20,7 +20,8 @@ export function getSupabaseAdmin(): SupabaseClient {
   })
 }
 
-// User dari sesi browser, diverifikasi ke server Auth (getUser, bukan getSession).
+// User dari sesi browser (cookie) ATAU aplikasi mobile (header Authorization: Bearer <access_token>),
+// diverifikasi ke server Auth (getUser, bukan getSession).
 export async function getSessionUser(): Promise<{ id: string } | null> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -29,6 +30,27 @@ export async function getSessionUser(): Promise<{ id: string } | null> {
     return null
   }
 
+  // 1) Aplikasi mobile (APK siswa): kirim access token via header Authorization.
+  //    Token diverifikasi langsung ke Supabase Auth — tidak ada cookie di native/WebView.
+  try {
+    const authHeader = (await headers()).get('authorization')
+    if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+      const token = authHeader.slice(7).trim()
+      if (token) {
+        const bearerClient = createClient(supabaseUrl, supabaseAnonKey, {
+          auth: { autoRefreshToken: false, persistSession: false }
+        })
+        const { data: { user: bearerUser }, error: bearerError } = await bearerClient.auth.getUser(token)
+        if (bearerError || !bearerUser) return null
+        return { id: bearerUser.id }
+      }
+      return null
+    }
+  } catch {
+    // headers() tidak tersedia di luar scope request — lanjut ke alur cookie.
+  }
+
+  // 2) Web: cookie sesi browser.
   const cookieStore = await cookies()
   const allCookies = cookieStore.getAll()
 

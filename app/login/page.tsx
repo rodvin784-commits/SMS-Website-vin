@@ -1,13 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { Logo, IconInput, Button, FeedbackMessage } from '@/components/ui'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,6 +28,14 @@ export default function LoginPage() {
         throw new Error(authError?.message || 'Gagal masuk. Periksa kembali email dan kata sandi.')
       }
 
+      // Pastikan sesi sudah tersimpan di cookie sebelum navigasi.
+      // Tanpa ini, middleware (proxy.ts) bisa gagal melihat cookie fresh
+      // saat navigasi SPA pertama dan melempar user balik ke /login.
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !sessionData.session) {
+        throw new Error(sessionError?.message || 'Sesi tidak dapat dipersiapkan. Silakan coba lagi.')
+      }
+
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role, status')
@@ -48,15 +54,23 @@ export default function LoginPage() {
 
       const role = profile.role
 
+      // Navigasi penuh (hard navigation) supaya request baru membawa cookie sesi
+      // segar ke middleware (proxy.ts) — mencegah redirect-loop setelah login.
       if (role === 'admin') {
-        router.push('/admin/dashboard')
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.assign('/admin/dashboard')
         return
       } else if (role === 'guru') {
-        router.push('/teacher/dashboard')
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.assign('/teacher/dashboard')
         return
       } else if (role === 'siswa') {
-        router.push('/siswa/dashboard')
-        return
+        // Portal siswa kini berupa aplikasi React Native terpisah,
+        // tidak lagi dilayani dari web ini.
+        await supabase.auth.signOut()
+        throw new Error(
+          'Portal siswa sudah dipindah ke aplikasi mobile. Silakan masuk melalui aplikasi.'
+        )
       } else {
         await supabase.auth.signOut()
         throw new Error('Akses ditolak. Akun Anda tidak memiliki hak akses.')

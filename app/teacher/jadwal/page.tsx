@@ -4,17 +4,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
-import { BookOpen, Calendar, ClipboardList, FileText, LayoutDashboard, Video } from 'lucide-react'
+import { teacherNavItems } from '@/lib/teacher-nav'
+import { BookOpen } from 'lucide-react'
 import { JadwalMengajar } from '@/components/teacher'
-
-const navItems = [
-  { href: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/teacher/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran' },
-  { href: '/teacher/materi', icon: Video, label: 'Materi & Video' },
-  { href: '/teacher/presensi', icon: ClipboardList, label: 'Presensi Siswa' },
-  { href: '/teacher/jadwal', icon: Calendar, label: 'Jadwal Mengajar' },
-  { href: '/teacher/nilai', icon: FileText, label: 'Nilai Siswa' },
-]
 
 export default function TeacherJadwalPage() {
   const router = useRouter()
@@ -35,7 +27,7 @@ export default function TeacherJadwalPage() {
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('nama_lengkap, role, status')
           .eq('id', session.user.id)
           .maybeSingle()
 
@@ -82,7 +74,7 @@ export default function TeacherJadwalPage() {
     <AppShell
       role="teacher"
       userName={teacherName}
-      navItems={navItems}
+      navItems={teacherNavItems}
       onLogout={handleLogout}
       logoIcon={<BookOpen className="h-6 w-6 text-emerald-400" />}
     >

@@ -3,6 +3,32 @@ import type { NextRequest } from 'next/server'
 import { adminCheck, getSupabaseAdmin } from '@/lib/supabase-server'
 import { denyResponse, serverError } from '@/lib/api-admin'
 
+const ROLES = ['guru', 'siswa'] as const
+type Role = (typeof ROLES)[number]
+
+function isRole(v: unknown): v is Role {
+  return typeof v === 'string' && (ROLES as readonly string[]).includes(v)
+}
+
+// Validasi kelas_id (wajib ada, status aktif, tingkat 10-12).
+async function validKelasId(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
+  kelasId: string | null | undefined
+): Promise<string | null> {
+  if (!kelasId) return null
+
+  const { data } = await supabaseAdmin
+    .from('kelas')
+    .select('id')
+    .eq('id', kelasId)
+    .eq('status', true)
+    .gte('tingkat', 10)
+    .lte('tingkat', 12)
+    .maybeSingle()
+
+  return data?.id ?? null
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await adminCheck()
@@ -17,12 +43,12 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('profiles')
-      .select('*, kelas:kelas!kelas_id(nama_kelas, tingkat)')
+      .select('id, email, nama_lengkap, role, status, created_at')
       .neq('role', 'admin') // Exclude admin accounts from listing
       .order('created_at', { ascending: false })
 
     if (role && role !== 'semua') {
-      if (!['guru', 'siswa'].includes(role)) {
+      if (!isRole(role)) {
         return NextResponse.json({ error: 'Role harus guru atau siswa' }, { status: 400 })
       }
       query = query.eq('role', role)
@@ -34,20 +60,54 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    // Sertakan kelas_id & kelas_nama (embed to-one PostgREST bisa object atau array)
-    const rows = (data ?? []) as Array<{
+    const profiles = (data ?? []) as Array<{
       id: string
-      email: string
+      email: string | null
       nama_lengkap: string | null
       role: string
       status: boolean
       created_at: string
-      kelas_id: string | null
-      kelas: { nama_kelas: string; tingkat: number } | { nama_kelas: string; tingkat: number }[] | null
     }>
 
-    const result = rows.map((r) => {
-      const kelasRow = Array.isArray(r.kelas) ? r.kelas[0] : r.kelas
+    // Ambil data spesifik guru/siswa (NIS/NIP/kelas) sekaligus untuk semua profil.
+    const profileIds = profiles.map((p) => p.id)
+
+    type GuruRow = { profile_id: string; nip: string | null; nama_lengkap: string | null }
+    type SiswaRow = {
+      profile_id: string
+      nis: string
+      nama_lengkap: string
+      kelas_id: string
+      kelas: { nama_kelas: string; tingkat: number } | { nama_kelas: string; tingkat: number }[] | null
+    }
+
+    const guruMap = new Map<string, GuruRow>()
+    const siswaMap = new Map<string, SiswaRow>()
+
+    if (profileIds.length > 0) {
+      const guruProfiles = profiles.filter((p) => p.role === 'guru')
+      if (guruProfiles.length > 0) {
+        const { data: guruRows } = await supabaseAdmin
+          .from('guru')
+          .select('profile_id, nip, nama_lengkap')
+          .in('profile_id', guruProfiles.map((p) => p.id))
+        for (const g of (guruRows ?? []) as GuruRow[]) guruMap.set(g.profile_id, g)
+      }
+
+      const siswaProfiles = profiles.filter((p) => p.role === 'siswa')
+      if (siswaProfiles.length > 0) {
+        const { data: siswaRows } = await supabaseAdmin
+          .from('siswa')
+          .select('profile_id, nis, nama_lengkap, kelas_id, kelas(nama_kelas, tingkat)')
+          .in('profile_id', siswaProfiles.map((p) => p.id))
+        for (const s of (siswaRows ?? []) as SiswaRow[]) siswaMap.set(s.profile_id, s)
+      }
+    }
+
+    const result = profiles.map((r) => {
+      const guru = guruMap.get(r.id)
+      const siswa = siswaMap.get(r.id)
+      const kelasRow = siswa ? (Array.isArray(siswa.kelas) ? siswa.kelas[0] : siswa.kelas) : null
       return {
         id: r.id,
         email: r.email,
@@ -55,7 +115,9 @@ export async function GET(request: NextRequest) {
         role: r.role,
         status: r.status,
         created_at: r.created_at,
-        kelas_id: r.kelas_id ?? null,
+        nip: guru?.nip ?? null,
+        nis: siswa?.nis ?? null,
+        kelas_id: siswa?.kelas_id ?? null,
         kelas_nama: kelasRow ? `Kelas ${kelasRow.tingkat} ${kelasRow.nama_kelas}` : null,
       }
     })
@@ -66,25 +128,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Validasi kelas_id (wajib ada, status aktif, tingkat 10-12). Balikan null bila tidak valid/ tidak dikirim.
-async function validKelasId(
-  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
-  kelasId: string | null | undefined
-): Promise<string | null> {
-  if (!kelasId) return null
-
-  const { data: kelasRow } = await supabaseAdmin
-    .from('kelas')
-    .select('id')
-    .eq('id', kelasId)
-    .eq('status', true)
-    .gte('tingkat', 10)
-    .lte('tingkat', 12)
-    .maybeSingle()
-
-  return kelasRow?.id ?? null
-}
-
 export async function POST(request: Request) {
   try {
     const auth = await adminCheck()
@@ -93,23 +136,35 @@ export async function POST(request: Request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin()
-    const { email, password, nama_lengkap, role, kelas_id } = await request.json()
+    const { email, password, nama_lengkap, role, kelas_id, nis, nip } = await request.json()
 
     // Validasi input
     if (!email || !password) {
       return NextResponse.json({ error: 'Email dan password wajib diisi' }, { status: 400 })
     }
 
-    if (!nama_lengkap || nama_lengkap.trim() === '') {
+    if (!nama_lengkap || String(nama_lengkap).trim() === '') {
       return NextResponse.json({ error: 'Nama lengkap wajib diisi' }, { status: 400 })
     }
 
-    if (!role || !['guru', 'siswa'].includes(role)) {
+    if (!isRole(role)) {
       return NextResponse.json({ error: 'Role harus guru atau siswa' }, { status: 400 })
     }
 
     if (password.length < 6) {
       return NextResponse.json({ error: 'Password minimal 6 karakter' }, { status: 400 })
+    }
+
+    const nama = String(nama_lengkap).trim()
+
+    if (role === 'siswa') {
+      if (!nis || String(nis).trim() === '') {
+        return NextResponse.json({ error: 'NIS wajib diisi untuk akun siswa' }, { status: 400 })
+      }
+      const resolvedKelasId = await validKelasId(supabaseAdmin, kelas_id)
+      if (!resolvedKelasId) {
+        return NextResponse.json({ error: 'Kelas wajib diisi dan harus berstatus aktif' }, { status: 400 })
+      }
     }
 
     // Cek email sudah terdaftar belum
@@ -135,7 +190,6 @@ export async function POST(request: Request) {
     })
 
     if (authError) {
-      // Jika email sudah ada di auth, beri pesan lebih jelas
       if (authError.message.includes('User already exists') || authError.message.includes('already exists')) {
         return NextResponse.json({ error: 'Email sudah terdaftar di sistem' }, { status: 400 })
       }
@@ -144,25 +198,47 @@ export async function POST(request: Request) {
 
     const userId = authData.user.id
 
-    // Validasi kelas (hanya untuk siswa). Guru/admin otomatis tanpa kelas.
-    const resolvedKelasId = await validKelasId(supabaseAdmin, role === 'siswa' ? (kelas_id ?? null) : null)
-
-    // 2. Masukkan data profil ke tabel profiles
+    // 2. Masukkan data profil ke tabel profiles (nama_lengkap, tanpa kelas_id)
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .insert({
         id: userId,
         email,
-        nama_lengkap: nama_lengkap.trim(),
+        nama_lengkap: nama,
         role,
         status: true,
-        kelas_id: resolvedKelasId,
       })
 
     if (profileError) {
-      // Jika gagal, kita coba hapus user auth yang baru dibuat
-      await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => {})
+      await supabaseAdmin.auth.admin.deleteUser(userId)
       return NextResponse.json({ error: profileError.message }, { status: 400 })
+    }
+
+    // 3. Masukkan data spesifik per role (guru / siswa)
+    if (role === 'guru') {
+      const { error: guruError } = await supabaseAdmin.from('guru').insert({
+        profile_id: userId,
+        nip: nip ? String(nip).trim() : null,
+        nama_lengkap: nama,
+      })
+      if (guruError) {
+        await supabaseAdmin.auth.admin.deleteUser(userId)
+        await supabaseAdmin.from('profiles').delete().eq('id', userId)
+        return NextResponse.json({ error: guruError.message }, { status: 400 })
+      }
+    } else {
+      const resolvedKelasId = (await validKelasId(supabaseAdmin, kelas_id)) as string
+      const { error: siswaError } = await supabaseAdmin.from('siswa').insert({
+        profile_id: userId,
+        nis: String(nis).trim(),
+        nama_lengkap: nama,
+        kelas_id: resolvedKelasId,
+      })
+      if (siswaError) {
+        await supabaseAdmin.auth.admin.deleteUser(userId)
+        await supabaseAdmin.from('profiles').delete().eq('id', userId)
+        return NextResponse.json({ error: siswaError.message }, { status: 400 })
+      }
     }
 
     return NextResponse.json({ message: 'Pengguna berhasil dibuat', userId }, { status: 201 })
@@ -179,23 +255,52 @@ export async function PUT(request: Request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin()
-    const { id, email, password, nama_lengkap, role, status, kelas_id } = await request.json()
+    const { id, email, password, nama_lengkap, role, status, kelas_id, nis, nip } = await request.json()
 
     if (!id) {
       return NextResponse.json({ error: 'ID pengguna wajib diisi' }, { status: 400 })
     }
 
-    // Validasi input
-    if (nama_lengkap && nama_lengkap.trim() === '') {
+    if (nama_lengkap !== undefined && String(nama_lengkap).trim() === '') {
       return NextResponse.json({ error: 'Nama lengkap tidak boleh kosong' }, { status: 400 })
     }
 
-    if (role && !['guru', 'siswa'].includes(role)) {
+    if (role !== undefined && !isRole(role)) {
       return NextResponse.json({ error: 'Role harus guru atau siswa' }, { status: 400 })
     }
 
     if (password && password.length < 6) {
       return NextResponse.json({ error: 'Password minimal 6 karakter' }, { status: 400 })
+    }
+
+    // Cek profil yang ada beserta role saat ini
+    const { data: existingProfile, error: existingErr } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role, nama_lengkap')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (existingErr) return NextResponse.json({ error: existingErr.message }, { status: 400 })
+    if (!existingProfile) return NextResponse.json({ error: 'Pengguna tidak ditemukan' }, { status: 404 })
+
+    const finalRole = role ?? existingProfile.role
+    const nama = nama_lengkap !== undefined ? String(nama_lengkap).trim() : undefined
+
+    if (finalRole === 'siswa') {
+      const awal = existingProfile.role
+      const nisFinal = nis !== undefined ? String(nis).trim() : undefined
+      const kelasFinal = kelas_id !== undefined ? await validKelasId(supabaseAdmin, kelas_id) : undefined
+
+      if (awal !== 'siswa' || nis !== undefined) {
+        if (!nisFinal) {
+          return NextResponse.json({ error: 'NIS wajib diisi untuk akun siswa' }, { status: 400 })
+        }
+      }
+      if (awal !== 'siswa' || kelas_id !== undefined) {
+        if (!kelasFinal) {
+          return NextResponse.json({ error: 'Kelas wajib diisi dan harus berstatus aktif' }, { status: 400 })
+        }
+      }
     }
 
     // 1. Update data auth (email / password) jika diubah
@@ -206,7 +311,6 @@ export async function PUT(request: Request) {
 
       const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, authPayload)
       if (authError) {
-        // Jika email sudah digunakan user lain
         if (authError.message.includes('already exists') || authError.message.includes('User already exists')) {
           return NextResponse.json({ error: 'Email sudah digunakan user lain' }, { status: 400 })
         }
@@ -215,30 +319,106 @@ export async function PUT(request: Request) {
     }
 
     // 2. Update data profil
-    const profileUpdates: { nama_lengkap?: string; role?: string; status?: boolean; email?: string; kelas_id?: string | null } = {}
+    const profileUpdates: { nama_lengkap?: string; role?: string; status?: boolean; email?: string } = {}
 
-    if (nama_lengkap !== undefined) profileUpdates.nama_lengkap = nama_lengkap.trim()
+    if (nama !== undefined) profileUpdates.nama_lengkap = nama
     if (role !== undefined) profileUpdates.role = role
     if (status !== undefined) profileUpdates.status = status
     if (email !== undefined) profileUpdates.email = email
 
-    // Relasi kelas: untuk siswa set sesuai pilihan (null = belum di kelas), untuk guru/admin selalu null
-    if (kelas_id !== undefined) {
-      let targetRole = role
-      if (!targetRole) {
-        const { data: existing } = await supabaseAdmin.from('profiles').select('role').eq('id', id).maybeSingle()
-        targetRole = existing?.role
+    if (Object.keys(profileUpdates).length > 0) {
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .update(profileUpdates)
+        .eq('id', id)
+
+      if (profileError) {
+        return NextResponse.json({ error: profileError.message }, { status: 400 })
       }
-      profileUpdates.kelas_id = targetRole === 'siswa' ? await validKelasId(supabaseAdmin, kelas_id ?? null) : null
     }
 
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .update(profileUpdates)
-      .eq('id', id)
+    // 3. Sinkronkan tabel guru / siswa mengikuti role final.
+    //    Role berpindah: bersihkan baris relasi pada role lama.
+    if (existingProfile.role === 'siswa' && finalRole !== 'siswa') {
+      const { data: siswaRow } = await supabaseAdmin
+        .from('siswa')
+        .select('id')
+        .eq('profile_id', id)
+        .maybeSingle()
+      if (siswaRow) {
+        await supabaseAdmin.from('pengumpulan_tugas').delete().eq('siswa_id', siswaRow.id)
+        await supabaseAdmin.from('nilai').delete().eq('siswa_id', siswaRow.id)
+        await supabaseAdmin.from('siswa').delete().eq('id', siswaRow.id)
+      }
+    }
 
-    if (profileError) {
-      return NextResponse.json({ error: profileError.message }, { status: 400 })
+    if (existingProfile.role === 'guru' && finalRole !== 'guru') {
+      const { data: guruRow } = await supabaseAdmin
+        .from('guru')
+        .select('id')
+        .eq('profile_id', id)
+        .maybeSingle()
+      if (guruRow) {
+        await supabaseAdmin.from('guru_kelas').delete().eq('guru_id', guruRow.id)
+        await supabaseAdmin.from('guru_mata_pelajaran').delete().eq('guru_id', guruRow.id)
+        await supabaseAdmin.from('guru').delete().eq('id', guruRow.id)
+      }
+    }
+
+    if (finalRole === 'guru') {
+      const guruPayload: { nip?: string | null; nama_lengkap?: string } = {}
+      if (nip !== undefined) guruPayload.nip = nip ? String(nip).trim() : null
+      if (nama !== undefined) guruPayload.nama_lengkap = nama
+
+      const { data: guruRow } = await supabaseAdmin
+        .from('guru')
+        .select('id')
+        .eq('profile_id', id)
+        .maybeSingle()
+
+      if (guruRow) {
+        if (Object.keys(guruPayload).length > 0) {
+          await supabaseAdmin.from('guru').update(guruPayload).eq('id', guruRow.id)
+        }
+      } else {
+        const { error: insertErr } = await supabaseAdmin.from('guru').insert({
+          profile_id: id,
+          nip: nip ? String(nip).trim() : null,
+          nama_lengkap: nama ?? existingProfile.nama_lengkap ?? '',
+        })
+        if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 400 })
+      }
+    }
+
+    if (finalRole === 'siswa') {
+      const siswaPayload: { nis?: string; nama_lengkap?: string; kelas_id?: string } = {}
+      if (nis !== undefined) siswaPayload.nis = String(nis).trim()
+      if (nama !== undefined) siswaPayload.nama_lengkap = nama
+      if (kelas_id !== undefined) {
+        const inlineKelas = await validKelasId(supabaseAdmin, kelas_id)
+        if (inlineKelas) siswaPayload.kelas_id = inlineKelas
+      }
+
+      const { data: siswaRow } = await supabaseAdmin
+        .from('siswa')
+        .select('id')
+        .eq('profile_id', id)
+        .maybeSingle()
+
+      if (siswaRow) {
+        if (Object.keys(siswaPayload).length > 0) {
+          await supabaseAdmin.from('siswa').update(siswaPayload).eq('id', siswaRow.id)
+        }
+      } else {
+        const kelasFinal = (await validKelasId(supabaseAdmin, kelas_id ?? null)) ?? undefined
+        const { error: insertErr } = await supabaseAdmin.from('siswa').insert({
+          profile_id: id,
+          nis: nis ? String(nis).trim() : '',
+          nama_lengkap: nama ?? existingProfile.nama_lengkap ?? '',
+          kelas_id: kelasFinal,
+        })
+        if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 400 })
+      }
     }
 
     return NextResponse.json({ message: 'Pengguna berhasil diperbarui' }, { status: 200 })
@@ -265,7 +445,7 @@ export async function DELETE(request: Request) {
     // 1. Cek apakah user ada
     const { data: user, error: checkError } = await supabaseAdmin
       .from('profiles')
-      .select('*')
+      .select('id, role')
       .eq('id', id)
       .maybeSingle()
 
@@ -277,17 +457,32 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Pengguna tidak ditemukan' }, { status: 404 })
     }
 
-    // 2. Hapus penugasan mengajar milik guru ini agar tidak jadi data orphan
-    const { error: assignError } = await supabaseAdmin
-      .from('guru_mengajar')
-      .delete()
-      .eq('guru_id', id)
-
-    if (assignError) {
-      return NextResponse.json({ error: assignError.message }, { status: 400 })
+    // 2. Bersihkan data relasi sebelum menghapus akun
+    if (user.role === 'guru') {
+      const { data: guruRow } = await supabaseAdmin
+        .from('guru')
+        .select('id')
+        .eq('profile_id', id)
+        .maybeSingle()
+      if (guruRow) {
+        await supabaseAdmin.from('guru_kelas').delete().eq('guru_id', guruRow.id)
+        await supabaseAdmin.from('guru_mata_pelajaran').delete().eq('guru_id', guruRow.id)
+        await supabaseAdmin.from('guru').delete().eq('id', guruRow.id)
+      }
+    } else if (user.role === 'siswa') {
+      const { data: siswaRow } = await supabaseAdmin
+        .from('siswa')
+        .select('id')
+        .eq('profile_id', id)
+        .maybeSingle()
+      if (siswaRow) {
+        await supabaseAdmin.from('pengumpulan_tugas').delete().eq('siswa_id', siswaRow.id)
+        await supabaseAdmin.from('nilai').delete().eq('siswa_id', siswaRow.id)
+        await supabaseAdmin.from('siswa').delete().eq('id', siswaRow.id)
+      }
     }
 
-    // 3. Hapus akun auth (agar email tidak terkunci) - dilakukan sebelum hapus profil
+    // 3. Hapus akun auth (agar email tidak terkunci)
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id)
     if (authError) {
       return NextResponse.json({ error: authError.message }, { status: 400 })

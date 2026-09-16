@@ -1,6 +1,11 @@
 # Sistem Manajemen Sekolah (SMS)
 
-Aplikasi manajemen sekolah untuk admin (panel admin) dan guru (panel guru): pengelolaan guru, siswa, mata pelajaran, kelas, jurusan, jadwal pelajaran, dan presensi siswa.
+Aplikasi manajemen sekolah untuk admin (panel admin) dan guru (panel guru): pengelolaan guru, siswa, mata pelajaran, kelas, jurusan, jadwal pelajaran, tugas, materi, video, pengumuman, dan nilai.
+
+> **PENTING:** Baca `DATABASE_CONTEXT.md` sebelum mengembangkan fitur apa pun.
+> File itu adalah SOURCE OF TRUTH struktur database Supabase yang dipakai panel guru
+> (profiles → guru → guru_kelas; tugas, materi, video, pengumuman, nilai, jadwal, notifikasi).
+> Panel guru TIDAK lagi memakai tabel lama `guru_mengajar`, `jadwal_pelajaran`, dan `presensi`.
 
 ## Tech Stack
 
@@ -134,12 +139,13 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 
 | Route | Fungsi |
 |---|---|
-| `/teacher/dashboard` | Ringkasan mapel & kelas diampu + statistik (jadwal hari ini, presensi diperiksa) |
-| `/teacher/mata-pelajaran` | Daftar mata pelajaran & kelas yang diampu (+ semester, materi) |
-| `/teacher/presensi` | Pilih penugasan + tanggal → isi kehadiran per siswa → simpan |
-| `/teacher/jadwal` | Papan jadwal mengajar mingguan (Senin–Sabtu, hari ini ditandai) |
-| `/teacher/nilai` | Input nilai per komponen (Harian/Tugas/UTS/UAS) + tab Rapor (rata-rata & predikat) |
-| `/teacher/materi` | Materi & video pembelajaran: tambah, edit, hapus (deskripsi + tautan video/dokumen) |
+| `/teacher/dashboard` | Ringkasan mapel & kelas diampu + statistik (jadwal hari ini, tugas aktif) + badge wali kelas (opsional) |
+| `/teacher/mata-pelajaran` | Daftar mata pelajaran & kelas yang diampu (dari `guru_kelas`, per tahun ajaran) |
+| `/teacher/tugas` | CRUD tugas (draft/publish/closed) multi-kelas + lampiran + modal pengumpulan siswa (unduh file via signed URL) |
+| `/teacher/materi` | Tab Materi (file via Storage bucket `materi`) & tab Video (tautan YouTube/Drive) per mapel + multi-kelas |
+| `/teacher/pengumuman` | Buat/edit/hapus pengumuman ke kelas yang diajar |
+| `/teacher/jadwal` | Papan jadwal mengajar mingguan (Senin–Sabtu, hari TEXT dari tabel `jadwal`) |
+| `/teacher/nilai` | Input nilai Tugas/UTS/UAS per semester + nilai akhir otomatis (30/30/40) + tab Rapor & predikat |
 
 ### Auth
 
@@ -162,18 +168,20 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 
 ### Guru (`/api/teacher/*`)
 
+Semua endpoint memverifikasi sesi guru via `lib/guru-auth.ts` (auth.uid → profiles → guru → guru_kelas) dan hanya mengizinkan akses ke mapel/kelas sesuai penugasan.
+
 | Endpoint | Method | Fungsi |
 |---|---|---|
-| `/api/teacher/mengajar` | GET | Penugasan mengajar milik guru + jumlah presensi yang sudah dikirim (`presensi_terkirim`) + `wali_kelas` (kelas tempat guru menjadi wali, null jika tidak ada) |
-| `/api/teacher/presensi` | GET | Roster siswa kelas + presensi pada tanggal tertentu (verified milik guru) |
-| `/api/teacher/presensi` | POST | Upsert massal presensi (tolak tanggal mendatang, validasi siswa anggota kelas) |
-| `/api/teacher/jadwal` | GET | Jadwal mingguan milik guru (hari, jam, ruangan, mapel, kelas) |
-| `/api/teacher/nilai` | GET | Roster siswa + nilai 4 komponen pada satu penugasan |
-| `/api/teacher/nilai` | POST | Upsert nilai per (penugasan, siswa, komponen); kosongkan nilai = hapus |
-| `/api/teacher/materi` | GET | Daftar materi milik guru + info mapel/kelas per penugasan |
-| `/api/teacher/materi` | POST | Tambah materi (judul wajib; minimal salah satu: deskripsi/video/dokumen; URL divalidasi) |
-| `/api/teacher/materi` | PUT | Edit materi milik sendiri (judul, deskripsi, video, dokumen, status tampil/draf) |
-| `/api/teacher/materi` | DELETE | Hapus materi milik sendiri (cek kepemilikan lewat penugasan) |
+| `/api/teacher/mengajar` | GET | Penugasan mengajar (guru_kelas) + `wali_kelas` opsional (jika kolom `kelas.wali_kelas_id` tersedia) |
+| `/api/teacher/jadwal` | GET | Jadwal mingguan dari tabel `jadwal` (hari TEXT, jam, ruangan) difilter penugasan guru_kelas |
+| `/api/teacher/nilai` | GET/POST | Roster + nilai per (siswa, mapel, semester, tahun ajaran); POST menghitung `nilai_akhir` otomatis (30% tugas + 30% UTS + 40% UAS) |
+| `/api/teacher/tugas` | GET/POST/PUT/DELETE | CRUD tugas + target kelas (`tugas_kelas`); POST mendukung multipart dengan lampiran ke bucket `tugas` |
+| `/api/teacher/pengumpulan` | GET | Roster siswa + status pengumpulan per tugas (guru harus mengajar kelas target) |
+| `/api/teacher/pengumpulan` | POST | Signed URL (10 menit) unduh file jawaban dari bucket private `pengumpulan` |
+| `/api/teacher/materi` | GET/POST/PUT/DELETE | CRUD materi (file via bucket `materi` / deskripsi) + target kelas (`materi_kelas`) |
+| `/api/teacher/materi/download` | POST | Signed URL (10 menit) unduh file materi milik guru |
+| `/api/teacher/video` | GET/POST/PUT/DELETE | CRUD video pembelajaran (`video_materi` + `video_kelas`); URL divalidasi |
+| `/api/teacher/pengumuman` | GET/POST/PUT/DELETE | CRUD pengumuman (`pengumuman` + `pengumuman_kelas`); hanya ke kelas yang diajar |
 
 ## Keamanan & Pola Kode
 
@@ -295,4 +303,46 @@ Buka http://localhost:3000/admin (login sebagai admin) atau http://localhost:300
 **Catatan deploy:**
 
 - Jalankan `supabase/migrations/20260915_create_materi_kelas.sql` di Supabase SQL Editor sebelum memakai fitur ini.
+
+### 2026-09-16 — Rewrite Panel Guru sesuai DATABASE_CONTEXT.md (DB baru)
+
+Panel guru ditulis ulang sepenuhnya mengikuti struktur database baru (lihat `DATABASE_CONTEXT.md`).
+
+**Perubahan besar:**
+
+- Penugasan guru kini dari tabel **`guru_kelas`** (guru + mapel + kelas + tahun ajaran) — tabel lama `guru_mengajar` tidak dipakai lagi.
+- Jadwal dari tabel **`jadwal`** (hari TEXT "Senin".."Sabtu") — tabel lama `jadwal_pelajaran` tidak dipakai lagi.
+- Nilai: 1 baris per (siswa, mapel, semester, tahun ajaran) dengan kolom `tugas`, `uts`, `uas`, `nilai_akhir` (30/30/40) — skema lama 4-komponen-per-baris diganti.
+- **Fitur presensi dihentikan** (tabel `presensi` tidak ada di DB baru) — halaman & API presensi dihapus. Restorasi bisa dari git history bila kelak tabelnya dibuat.
+- Siswa kelas dibaca dari tabel **`siswa`** (`siswa.kelas_id`), bukan `profiles.kelas_id`.
+
+**Fitur baru:**
+
+- **Tugas & Pengumpulan** (`/teacher/tugas`): CRUD tugas multi-kelas (draft/published/closed), lampiran ke bucket `tugas`, modal pengumpulan siswa + unduh file via signed URL bucket `pengumpulan`.
+- **Materi (file)**: unggah dokumen ke bucket private `materi` + unduh via signed URL (`/api/teacher/materi/download`).
+- **Video Pembelajaran**: terpisah dari materi — tabel `video_materi` + `video_kelas` (tab di halaman Materi & Video).
+- **Pengumuman** (`/teacher/pengumuman`): kirim per kelas yang diajar (`pengumuman` + `pengumuman_kelas`).
+- **Wali kelas (opsional)**: terdeteksi otomatis bila kolom `kelas.wali_kelas_id` tersedia.
+
+**File baru:**
+
+| File | Isi |
+|---|---|
+| `DATABASE_CONTEXT.md` | Source of truth struktur DB (wajib dibaca agent) |
+| `lib/guru-auth.ts` | Helper auth guru: `guruAuth()`, `getGuruKelas()`, `isAssigned()`, `getSiswaKelas()` |
+| `lib/teacher-nav.ts` | Nav bersama panel guru |
+| `app/api/teacher/tugas/route.ts` | CRUD tugas + lampiran Storage |
+| `app/api/teacher/pengumpulan/route.ts` | Status pengumpulan + signed URL unduhan |
+| `app/api/teacher/video/route.ts` | CRUD video pembelajaran |
+| `app/api/teacher/pengumuman/route.ts` | CRUD pengumuman |
+| `app/api/teacher/materi/download/route.ts` | Signed URL unduh materi |
+| `app/teacher/tugas/page.tsx`, `app/teacher/pengumuman/page.tsx` | Halaman baru |
+| `components/teacher/TugasManager.tsx`, `VideoMateriManager.tsx`, `PengumumanManager.tsx` | Komponen UI baru |
+
+**Diubah / dihapus:**
+
+- Rewrite: `app/api/teacher/{mengajar,jadwal,nilai,materi}/route.ts`, `components/teacher/{AssignmentCard,JadwalMengajar,NilaiManager,MateriAjarManager}.tsx`, semua halaman `/teacher/*`.
+- Dihapus: `app/teacher/presensi/`, `app/api/teacher/presensi/`, `app/api/siswa/`, `components/teacher/PresensiManager.tsx`.
+
+**Prasyarat:** database sesuai `DATABASE_CONTEXT.md` (tabel guru, siswa, guru_kelas, tugas, tugas_kelas, pengumpulan_tugas, materi, materi_kelas, video_materi, video_kelas, pengumuman, pengumuman_kelas, nilai, jadwal, notifikasi + bucket materi/tugas/pengumpulan).
 - Siswa nantinya membaca materi lewat API siswa (READ saja) — belum tersedia pada pembaruan ini.

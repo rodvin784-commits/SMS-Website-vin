@@ -4,19 +4,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
-import { BookOpen, Calendar, ClipboardList, FileText, LayoutDashboard, Video } from 'lucide-react'
+import { teacherNavItems } from '@/lib/teacher-nav'
+import { BookOpen } from 'lucide-react'
 
 type GuruAssignment = {
   id: string
-  mapel_id: string
+  mata_pelajaran_id: string
   mapel_nama: string | null
   mapel_kode: string | null
   kelas_id: string
   kelas_nama: string | null
   tingkat: number | null
   tahun_ajaran: string | null
-  semester: string | null
-  materi: string | null
 }
 
 type MapelGroup = {
@@ -25,15 +24,6 @@ type MapelGroup = {
   mapel_kode: string | null
   kelas: GuruAssignment[]
 }
-
-const navItems = [
-  { href: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/teacher/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran' },
-  { href: '/teacher/materi', icon: Video, label: 'Materi & Video' },
-  { href: '/teacher/presensi', icon: ClipboardList, label: 'Presensi Siswa' },
-  { href: '/teacher/jadwal', icon: Calendar, label: 'Jadwal Mengajar' },
-  { href: '/teacher/nilai', icon: FileText, label: 'Nilai Siswa' },
-]
 
 export default function TeacherMapelPage() {
   const router = useRouter()
@@ -55,7 +45,7 @@ export default function TeacherMapelPage() {
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('nama_lengkap, role, status')
           .eq('id', session.user.id)
           .maybeSingle()
 
@@ -100,15 +90,15 @@ export default function TeacherMapelPage() {
   const mapelGroups = useMemo(() => {
     const groups = new Map<string, MapelGroup>()
     for (const a of assignments) {
-      let g = groups.get(a.mapel_id)
+      let g = groups.get(a.mata_pelajaran_id)
       if (!g) {
         g = {
-          mapel_id: a.mapel_id,
+          mapel_id: a.mata_pelajaran_id,
           mapel_nama: a.mapel_nama,
           mapel_kode: a.mapel_kode,
           kelas: [],
         }
-        groups.set(a.mapel_id, g)
+        groups.set(a.mata_pelajaran_id, g)
       }
       g.kelas.push(a)
     }
@@ -135,7 +125,7 @@ export default function TeacherMapelPage() {
     <AppShell
       role="teacher"
       userName={teacherName}
-      navItems={navItems}
+      navItems={teacherNavItems}
       onLogout={handleLogout}
       logoIcon={<BookOpen className="h-6 w-6 text-emerald-400" />}
     >
@@ -184,10 +174,8 @@ export default function TeacherMapelPage() {
                       >
                         <p className="text-sm font-bold text-gray-900">{a.kelas_nama}</p>
                         <p className="text-xs text-gray-400">
-                          {a.semester === 'genap' ? 'Semester Genap' : 'Semester Ganjil'}
-                          {a.tahun_ajaran ? ` · ${a.tahun_ajaran}` : ''}
+                          {a.tahun_ajaran ? `T.A. ${a.tahun_ajaran}` : '—'}
                         </p>
-                        {a.materi && <p className="text-xs text-gray-500 mt-0.5">Materi: {a.materi}</p>}
                       </div>
                     ))}
                   </div>
