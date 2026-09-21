@@ -6,8 +6,30 @@ import { siswaAuth } from '@/lib/siswa-auth'
 // Pengumpulan tugas siswa (DATABASE_CONTEXT.md #12):
 // - Siswa hanya boleh mengumpulkan untuk dirinya sendiri (siswa_id = auth).
 // - Tugas harus ditujukan ke kelas siswa dan berstatus published.
-// - Satu siswa satu pengumpulan per tugas: mengumpulkan lagi = ganti file lama.
+// - Satu siswa satu pengumpulan per tugas: mengumpulkan lagi = ganti jawaban lama (teks dan/atau file).
 // - File jawaban di bucket private `pengumpulan` -> akses via signed URL.
+
+const FOTO_MAX_COUNT_SISWA = 5
+const FOTO_MAX_SIZE_SISWA = 8 * 1024 * 1024
+const ALLOWED_IMAGE_TYPES_SISWA = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+
+function isAllowedImageSiswa(file: File): boolean {
+  if (ALLOWED_IMAGE_TYPES_SISWA.includes(file.type.toLowerCase())) return true
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  return ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].includes(ext)
+}
+
+function collectFotoFilesSiswa(form: FormData): File[] {
+  const keys = ['foto', 'fotos', 'fotos[]', 'foto[]', 'images', 'image', 'photos', 'files']
+  const files: File[] = []
+  for (const k of keys) {
+    const vals = form.getAll(k)
+    for (const v of vals) {
+      if (v instanceof File && v.size > 0) files.push(v)
+    }
+  }
+  return files
+}
 
 // GET /api/siswa/pengumpulan?tugas_id=...
 // Pengumpulan milik siswa untuk satu tugas (status submit / unduh).
@@ -25,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await getSupabaseAdmin()
       .from('pengumpulan_tugas')
-      .select('id, tugas_id, siswa_id, file_url, nama_file, catatan, status, submitted_at, updated_at')
+      .select('id, tugas_id, siswa_id, file_url, nama_file, foto_urls, jawaban_teks, catatan, status, submitted_at, updated_at, nilai, feedback, dinilai_at')
       .eq('siswa_id', auth.siswaId)
       .eq('tugas_id', tugasId)
       .maybeSingle()
@@ -35,12 +57,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       pengumpulan: data
         ? {
-            id: data.id,
-            status: data.status,
-            nama_file: data.nama_file,
-            catatan: data.catatan,
-            submitted_at: data.submitted_at,
-            updated_at: data.updated_at,
+            id: (data as { id: string }).id,
+            status: (data as { status: string | null }).status,
+            nama_file: (data as { nama_file: string | null }).nama_file,
+            foto_urls: (data as { foto_urls: string[] | null }).foto_urls ?? null,
+            jawaban_teks: (data as { jawaban_teks: string | null }).jawaban_teks,
+            catatan: (data as { catatan: string | null }).catatan,
+            submitted_at: (data as { submitted_at: string | null }).submitted_at,
+            updated_at: (data as { updated_at: string | null }).updated_at,
+            nilai: (data as { nilai: number | null }).nilai ?? null,
+            feedback: (data as { feedback: string | null }).feedback ?? null,
+            dinilai_at: (data as { dinilai_at: string | null }).dinilai_at ?? null,
           }
         : null,
     })
@@ -54,7 +81,8 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/siswa/pengumpulan
-// Multipart: { tugas_id, file (wajib), catatan? }
+// Multipart: { tugas_id, file? (opsional), jawaban_teks? (maks 10.000 karakter), catatan? }
+// Minimal salah satu antara file dan jawaban_teks harus terisi.
 export async function POST(request: NextRequest) {
   try {
     const auth = await siswaAuth()
@@ -70,14 +98,31 @@ export async function POST(request: NextRequest) {
     const form = await request.formData()
     const tugasId = String(form.get('tugas_id') ?? '')
     const catatan = form.get('catatan') ? String(form.get('catatan')).trim().slice(0, 2000) : null
-    const file = form.get('file')
+    const jawabanTeks = form.get('jawaban_teks')
+      ? String(form.get('jawaban_teks')).trim().slice(0, 10000)
+      : null
+    const fileRaw = form.get('file')
+    const file = fileRaw instanceof File && fileRaw.size > 0 ? fileRaw : null
+    let fotoFiles = collectFotoFilesSiswa(form)
+    // deduplicate if file also counted as foto
+    if (file && fotoFiles.some((f) => f.name === file.name && f.size === file.size)) {
+      fotoFiles = fotoFiles.filter((f) => !(f.name === file.name && f.size === file.size))
+    }
+    const hasFoto = fotoFiles.length > 0
 
     if (!tugasId) return NextResponse.json({ error: 'tugas_id wajib diisi.' }, { status: 400 })
-    if (!(file instanceof File) || file.size === 0) {
-      return NextResponse.json({ error: 'File jawaban wajib diunggah.' }, { status: 400 })
+    if (!file && !jawabanTeks && !hasFoto) {
+      return NextResponse.json({ error: 'Isi jawaban teks, unggah file, atau tambahkan foto jawaban.' }, { status: 400 })
     }
-    if (file.size > 25 * 1024 * 1024) {
+    if (file && file.size > 25 * 1024 * 1024) {
       return NextResponse.json({ error: 'Ukuran file maksimal 25MB.' }, { status: 400 })
+    }
+    if (fotoFiles.length > FOTO_MAX_COUNT_SISWA) {
+      return NextResponse.json({ error: `Maksimal ${FOTO_MAX_COUNT_SISWA} foto per pengumpulan.` }, { status: 400 })
+    }
+    for (const foto of fotoFiles) {
+      if (foto.size > FOTO_MAX_SIZE_SISWA) return NextResponse.json({ error: `Foto "${foto.name}" melebihi ${FOTO_MAX_SIZE_SISWA / (1024 * 1024)}MB.` }, { status: 400 })
+      if (!isAllowedImageSiswa(foto)) return NextResponse.json({ error: `Foto "${foto.name}" harus berupa gambar (jpg, png, webp).` }, { status: 400 })
     }
 
     const supabase = getSupabaseAdmin()
@@ -114,46 +159,81 @@ export async function POST(request: NextRequest) {
     // Cek pengumpulan yang sudah ada untuk siswa ini (satu per tugas).
     const { data: existing, error: exErr } = await supabase
       .from('pengumpulan_tugas')
-      .select('id, file_url')
+      .select('id, file_url, foto_urls')
       .eq('siswa_id', auth.siswaId)
       .eq('tugas_id', tugasId)
       .maybeSingle()
 
     if (exErr) return NextResponse.json({ error: exErr.message }, { status: 400 })
 
-    const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
-    const path = `${auth.siswaId}/${tugasId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    // Upload file utama (file_url) dan foto-foto (foto_urls)
+    let path: string | null = null
+    if (file) {
+      const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
+      path = `${auth.siswaId}/${tugasId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
 
-    const { error: upErr } = await supabase
-      .storage
-      .from('pengumpulan')
-      .upload(path, file, { upsert: false })
+      const { error: upErr } = await supabase
+        .storage
+        .from('pengumpulan')
+        .upload(path, file, { upsert: false })
 
-    if (upErr) {
-      return NextResponse.json({ error: `Gagal upload file: ${upErr.message}` }, { status: 400 })
+      if (upErr) {
+        return NextResponse.json({ error: `Gagal upload file: ${upErr.message}` }, { status: 400 })
+      }
     }
 
+    let fotoPaths: string[] | null = null
+    if (fotoFiles.length > 0) {
+      fotoPaths = []
+      for (const foto of fotoFiles) {
+        const ext = foto.name.includes('.') ? foto.name.split('.').pop() : 'jpg'
+        const p = `${auth.siswaId}/${tugasId}/foto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+        const { error: upErr } = await supabase.storage.from('pengumpulan').upload(p, foto, { upsert: false, contentType: foto.type || 'image/jpeg' })
+        if (upErr) {
+          if (path) await supabase.storage.from('pengumpulan').remove([path])
+          if (fotoPaths.length > 0) await supabase.storage.from('pengumpulan').remove(fotoPaths)
+          return NextResponse.json({ error: `Gagal upload foto: ${upErr.message}` }, { status: 400 })
+        }
+        fotoPaths.push(p)
+      }
+    }
+
+    const existingRow = existing as { id: string; file_url: string | null; foto_urls: string[] | null } | null
+
     if (existing) {
-      // Ganti pengumpulan lama (bukti revisi = file baru, path baru).
+      // Ganti pengumpulan lama (full-replace: file null => hapus, foto null/0 => hapus jika tidak dikirim ulang? 
+      // Untuk foto: jika fotoFiles ada => ganti dengan yang baru; jika tidak ada foto baru dan sebelumnya ada foto => pertahankan? 
+      // Kita pakai: jika fotoFiles diajukan => replace; jika tidak diajukan dan tidak ada file/jawaban baru yang menggantikan foto, pertahankan agar tidak hilang tanpa sengaja.
+      // Namun jika user kirim teks-only tanpa foto, kita anggap ingin hapus foto lama (full-replace seperti file).
+      // Jadi: jika fotoFiles.length>0 => foto_urls = fotoPaths, else foto_urls = null (hapus)
+      // Untuk menjaga UX multi-foto replace, ini sesuai.
+      const nextFotoUrls = fotoFiles.length > 0 ? fotoPaths : null
       const { error: updErr } = await supabase
         .from('pengumpulan_tugas')
         .update({
           file_url: path,
-          nama_file: file.name,
+          nama_file: file?.name ?? null,
+          foto_urls: nextFotoUrls,
+          jawaban_teks: jawabanTeks,
           catatan,
           status,
           submitted_at: now,
           updated_at: now,
         })
-        .eq('id', existing.id)
+        .eq('id', existingRow!.id)
         .eq('siswa_id', auth.siswaId)
 
       if (updErr) {
-        await supabase.storage.from('pengumpulan').remove([path])
+        if (path) await supabase.storage.from('pengumpulan').remove([path])
+        if (fotoPaths && fotoPaths.length > 0) await supabase.storage.from('pengumpulan').remove(fotoPaths)
         return NextResponse.json({ error: updErr.message }, { status: 400 })
       }
-      if (existing.file_url) {
-        await supabase.storage.from('pengumpulan').remove([existing.file_url])
+      if (existingRow?.file_url && existingRow.file_url !== path) {
+        await supabase.storage.from('pengumpulan').remove([existingRow.file_url])
+      }
+      if (existingRow?.foto_urls && existingRow.foto_urls.length > 0) {
+        const toRemove = existingRow.foto_urls.filter((p) => !(nextFotoUrls ?? []).includes(p))
+        if (toRemove.length > 0) await supabase.storage.from('pengumpulan').remove(toRemove)
       }
     } else {
       const { error: insErr } = await supabase
@@ -162,14 +242,17 @@ export async function POST(request: NextRequest) {
           tugas_id: tugasId,
           siswa_id: auth.siswaId,
           file_url: path,
-          nama_file: file.name,
+          nama_file: file?.name ?? null,
+          foto_urls: fotoPaths,
+          jawaban_teks: jawabanTeks,
           catatan,
           status,
           submitted_at: now,
         })
 
       if (insErr) {
-        await supabase.storage.from('pengumpulan').remove([path])
+        if (path) await supabase.storage.from('pengumpulan').remove([path])
+        if (fotoPaths && fotoPaths.length > 0) await supabase.storage.from('pengumpulan').remove(fotoPaths)
         return NextResponse.json({ error: insErr.message }, { status: 400 })
       }
     }

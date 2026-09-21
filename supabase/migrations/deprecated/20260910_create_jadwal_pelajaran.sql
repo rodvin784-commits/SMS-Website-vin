@@ -1,3 +1,4 @@
+-- DEPRECATED: tabel ini tidak dipakai lagi sejak rewrite 2026-09-16
 -- Migration: Tabel jadwal_pelajaran untuk fitur Jadwal Pelajaran
 -- Jalankan di: Supabase Dashboard > SQL Editor
 --

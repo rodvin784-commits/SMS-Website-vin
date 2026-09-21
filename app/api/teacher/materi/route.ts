@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-server'
 import { guruAuth, isAssigned } from '@/lib/guru-auth'
+import { kirimNotifikasiKeKelas } from '@/lib/notifikasi'
 
 // Materi (DATABASE_CONTEXT.md #13-14):
 // - materi: judul, deskripsi, file (bucket private `materi`), per (guru, mata_pelajaran)
@@ -200,6 +201,13 @@ export async function POST(request: NextRequest) {
       if (filePath) await getSupabaseAdmin().storage.from('materi').remove([filePath])
       return NextResponse.json({ error: mkErr.message }, { status: 400 })
     }
+
+    await kirimNotifikasiKeKelas(kelasIds, {
+      judul: 'Materi baru',
+      pesan: `Materi baru "${judul}" tersedia.`,
+      tipe: 'materi',
+      referensiId: created.id,
+    })
 
     return NextResponse.json({ message: 'Materi berhasil ditambahkan.', id: created.id }, { status: 201 })
   } catch (err) {

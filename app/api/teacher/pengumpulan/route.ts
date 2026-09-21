@@ -23,9 +23,14 @@ type PengumpulanRow = {
   siswa_id: string
   file_url: string | null
   nama_file: string | null
+  foto_urls: string[] | null
+  jawaban_teks: string | null
   catatan: string | null
   status: string | null
   submitted_at: string | null
+  nilai: number | null
+  feedback: string | null
+  dinilai_at: string | null
   siswa: { nama_lengkap: string; nis: string } | { nama_lengkap: string; nis: string }[] | null
 }
 
@@ -101,7 +106,7 @@ export async function GET(request: NextRequest) {
     const { data: pengRows, error: pengErr } = await getSupabaseAdmin()
       .from('pengumpulan_tugas')
       .select(`
-        id, tugas_id, siswa_id, file_url, nama_file, catatan, status, submitted_at,
+        id, tugas_id, siswa_id, file_url, nama_file, foto_urls, jawaban_teks, catatan, status, submitted_at, nilai, feedback, dinilai_at,
         siswa(nama_lengkap, nis)
       `)
       .eq('tugas_id', tugasId)
@@ -128,8 +133,14 @@ export async function GET(request: NextRequest) {
               status,
               nama_file: p.nama_file,
               has_file: Boolean(p.file_url),
+              foto_urls: p.foto_urls ?? null,
+              has_foto: Boolean(p.foto_urls && p.foto_urls.length > 0),
+              jawaban_teks: p.jawaban_teks,
               catatan: p.catatan,
               submitted_at: p.submitted_at,
+              nilai: p.nilai ?? null,
+              feedback: p.feedback ?? null,
+              dinilai_at: p.dinilai_at ?? null,
             }
           : null,
       }
@@ -177,10 +188,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'pengumpulan_id wajib diisi.' }, { status: 400 })
     }
 
+    const fotoIndexRaw = body?.foto_index
+    const fotoIndex = fotoIndexRaw !== undefined && fotoIndexRaw !== null ? Number(fotoIndexRaw) : null
+
     const { data: peng, error: pengErr } = await getSupabaseAdmin()
       .from('pengumpulan_tugas')
       .select(`
-        id, tugas_id, file_url, nama_file,
+        id, tugas_id, file_url, nama_file, foto_urls,
         tugas(guru_id, mata_pelajaran_id, tugas_kelas(kelas_id))
       `)
       .eq('id', pengumpulanId)
@@ -194,6 +208,7 @@ export async function POST(request: NextRequest) {
       tugas_id: string
       file_url: string | null
       nama_file: string | null
+      foto_urls: string[] | null
       tugas: {
         guru_id: string
         mata_pelajaran_id: string
@@ -216,7 +231,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Anda tidak mengajar kelas tujuan tugas ini.' }, { status: 403 })
     }
 
+    // Jika minta foto spesifik
+    if (fotoIndex !== null && !Number.isNaN(fotoIndex)) {
+      if (!p.foto_urls || !p.foto_urls[fotoIndex]) {
+        return NextResponse.json({ error: 'Foto tidak ditemukan.' }, { status: 404 })
+      }
+      const fotoPath = p.foto_urls[fotoIndex]
+      const { data: signedFoto, error: fotoErr } = await getSupabaseAdmin().storage.from('pengumpulan').createSignedUrl(fotoPath, 600)
+      if (fotoErr || !signedFoto) return NextResponse.json({ error: fotoErr?.message ?? 'Gagal membuat tautan foto.' }, { status: 400 })
+      return NextResponse.json({ url: signedFoto.signedUrl, foto_index: fotoIndex, foto_urls: p.foto_urls })
+    }
+
+    // Jika ada foto_urls, kembalikan semua signed URLs foto juga (untuk preview)
+    let fotoSigned: string[] | null = null
+    if (p.foto_urls && p.foto_urls.length > 0) {
+      fotoSigned = []
+      for (const fp of p.foto_urls) {
+        const { data: s } = await getSupabaseAdmin().storage.from('pengumpulan').createSignedUrl(fp, 600)
+        if (s) fotoSigned.push(s.signedUrl)
+      }
+    }
+
     if (!p.file_url) {
+      if (fotoSigned && fotoSigned.length > 0) {
+        return NextResponse.json({ url: fotoSigned[0], foto_urls: fotoSigned, nama_file: p.nama_file, is_foto: true })
+      }
       return NextResponse.json({ error: 'Siswa belum mengunggah file.' }, { status: 400 })
     }
 
@@ -235,7 +274,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ url: signed.signedUrl, nama_file: p.nama_file })
+    return NextResponse.json({ url: signed.signedUrl, nama_file: p.nama_file, foto_urls: fotoSigned })
   } catch (err) {
     console.error('Error POST pengumpulan download:', err)
     return NextResponse.json(

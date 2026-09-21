@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-server'
 import { guruAuth, isAssigned } from '@/lib/guru-auth'
+import { kirimNotifikasiKeKelas } from '@/lib/notifikasi'
 
 // Video pembelajaran (DATABASE_CONTEXT.md #15-16):
 // - video_materi: judul, deskripsi, video_url, thumbnail_url per (guru, mata_pelajaran)
@@ -58,6 +59,18 @@ function mapVideo(r: VideoEmbedRow) {
       return { kelas_id: vk.kelas_id, nama_kelas: k?.nama_kelas ?? null, tingkat: k?.tingkat ?? null }
     }),
   }
+}
+
+function youtubeIdFromUrl(url: string): string | null {
+  try {
+    const m = url.match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/)
+    return m ? m[1] : null
+  } catch { return null }
+}
+
+function youtubeThumbnailFromUrl(url: string): string | null {
+  const id = youtubeIdFromUrl(url)
+  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null
 }
 
 function validateUrl(value: unknown, label: string): { ok: true; url: string } | { ok: false; error: string } {
@@ -126,6 +139,11 @@ export async function POST(request: NextRequest) {
       if (!thumb.ok) return NextResponse.json({ error: thumb.error }, { status: 400 })
       thumbnailUrl = thumb.url
     }
+    // Auto-generate thumbnail dari YouTube jika tidak diisi
+    if (!thumbnailUrl) {
+      const autoThumb = youtubeThumbnailFromUrl(videoUrl.url)
+      if (autoThumb) thumbnailUrl = autoThumb
+    }
 
     for (const kelasId of kelasIds) {
       if (!(await isAssigned(auth.guruId, mapelId, kelasId))) {
@@ -159,6 +177,13 @@ export async function POST(request: NextRequest) {
       await getSupabaseAdmin().from('video_materi').delete().eq('id', created.id)
       return NextResponse.json({ error: vkErr.message }, { status: 400 })
     }
+
+    await kirimNotifikasiKeKelas(kelasIds, {
+      judul: 'Video baru',
+      pesan: `Video pembelajaran baru "${judul}" tersedia.`,
+      tipe: 'video',
+      referensiId: created.id,
+    })
 
     return NextResponse.json({ message: 'Video berhasil ditambahkan.', id: created.id }, { status: 201 })
   } catch (err) {
@@ -214,11 +239,38 @@ export async function PUT(request: NextRequest) {
     }
     if (body.thumbnail_url !== undefined) {
       if (body.thumbnail_url === null || body.thumbnail_url === '') {
-        updates.thumbnail_url = null
+        // Jika dikosongkan, coba auto dari video_url (baru atau existing)
+        const candidateUrl = body.video_url ? String(body.video_url) : null
+        if (candidateUrl) {
+          const v = validateUrl(candidateUrl, 'URL video')
+          if (v.ok) {
+            const autoThumb = youtubeThumbnailFromUrl(v.url)
+            if (autoThumb) {
+              updates.thumbnail_url = autoThumb
+            } else {
+              updates.thumbnail_url = null
+            }
+          } else {
+            updates.thumbnail_url = null
+          }
+        } else {
+          updates.thumbnail_url = null
+        }
       } else {
         const t = validateUrl(body.thumbnail_url, 'URL thumbnail')
         if (!t.ok) return NextResponse.json({ error: t.error }, { status: 400 })
         updates.thumbnail_url = t.url
+      }
+    } else if (body.video_url !== undefined) {
+      // Video URL diubah tapi thumbnail tidak disentuh: auto jika existing thumbnail null
+      const v = validateUrl(body.video_url, 'URL video')
+      if (v.ok) {
+        const { data: cur } = await supabase.from('video_materi').select('thumbnail_url').eq('id', id).maybeSingle()
+        const curThumb = (cur as { thumbnail_url: string | null } | null)?.thumbnail_url ?? null
+        if (!curThumb) {
+          const autoThumb = youtubeThumbnailFromUrl(v.url)
+          if (autoThumb) updates.thumbnail_url = autoThumb
+        }
       }
     }
 

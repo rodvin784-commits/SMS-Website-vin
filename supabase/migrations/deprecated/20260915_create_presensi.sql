@@ -1,3 +1,4 @@
+-- DEPRECATED: tabel ini tidak dipakai lagi sejak rewrite 2026-09-16
 -- Migration: Tabel presensi untuk fitur Presensi Siswa
 -- Jalankan di: Supabase Dashboard > SQL Editor
 --

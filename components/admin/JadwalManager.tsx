@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { Calendar, Plus, Trash2, Clock, DoorOpen, BookOpen } from 'lucide-react'
+import { Calendar, Plus, Pencil, Trash2, Clock, DoorOpen, BookOpen } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
@@ -51,6 +51,7 @@ export function JadwalManager() {
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
     guru_kelas_id: '',
@@ -126,7 +127,21 @@ export function JadwalManager() {
       showFeedback('error', 'Kelas ini belum punya penugasan guru. Tambahkan penugasan dulu di halaman Mata Pelajaran.')
       return
     }
+    setEditingId(null)
     resetForm()
+    setFeedback(null)
+    setIsModalOpen(true)
+  }
+
+  const openEditModal = (item: JadwalItem) => {
+    setEditingId(item.id)
+    setForm({
+      guru_kelas_id: '',
+      hari: item.hari,
+      jam_mulai: item.jam_mulai,
+      jam_selesai: item.jam_selesai,
+      ruangan: item.ruangan ?? '',
+    })
     setFeedback(null)
     setIsModalOpen(true)
   }
@@ -134,18 +149,23 @@ export function JadwalManager() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
-    if (!form.guru_kelas_id || !form.hari || !form.jam_mulai || !form.jam_selesai) {
-      showFeedback('error', 'Lengkapi penugasan, hari, dan jam mulai-selesai')
+    if (!form.hari || !form.jam_mulai || !form.jam_selesai) {
+      showFeedback('error', 'Lengkapi hari dan jam mulai-selesai')
+      return
+    }
+    if (!editingId && !form.guru_kelas_id) {
+      showFeedback('error', 'Pilih penugasan guru')
       return
     }
 
     setSubmitting(true)
     try {
       const res = await fetch('/api/admin/jadwal', {
-        method: 'POST',
+        method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          guru_kelas_id: form.guru_kelas_id,
+          ...(editingId ? { id: editingId } : {}),
+          guru_kelas_id: form.guru_kelas_id || undefined,
           hari: form.hari,
           jam_mulai: form.jam_mulai,
           jam_selesai: form.jam_selesai,
@@ -159,8 +179,9 @@ export function JadwalManager() {
       }
 
       setIsModalOpen(false)
+      setEditingId(null)
       resetForm()
-      showFeedback('success', data?.message || 'Jadwal berhasil ditambahkan')
+      showFeedback('success', data?.message || 'Jadwal berhasil disimpan')
       fetchJadwal(selectedKelasId)
     } catch (err) {
       showFeedback('error', err instanceof Error ? err.message : 'Gagal menyimpan jadwal')
@@ -300,13 +321,22 @@ export function JadwalManager() {
                               </p>
                             )}
                           </div>
-                          <button
-                            onClick={() => handleDelete(item.id)}
-                            title="Hapus jadwal"
-                            className="text-gray-300 hover:text-red-500 transition-colors p-1 flex-shrink-0"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <button
+                              onClick={() => openEditModal(item)}
+                              title="Edit jadwal"
+                              className="text-gray-300 hover:text-indigo-500 transition-colors p-1"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              title="Hapus jadwal"
+                              className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))
@@ -322,7 +352,7 @@ export function JadwalManager() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={`Tambah Jadwal${selectedKelas ? ` — Kelas ${selectedKelas.tingkat} ${selectedKelas.nama_kelas}` : ''}`}
+        title={`${editingId ? 'Edit' : 'Tambah'} Jadwal${selectedKelas ? ` — Kelas ${selectedKelas.tingkat} ${selectedKelas.nama_kelas}` : ''}`}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
@@ -333,7 +363,7 @@ export function JadwalManager() {
             <Select
               value={form.guru_kelas_id}
               onChange={(e) => setForm((prev) => ({ ...prev, guru_kelas_id: e.target.value }))}
-              placeholder=" -- Pilih Penugasan (Mapel — Guru) -- "
+              placeholder={editingId ? ' -- Pertahankan penugasan saat ini -- ' : ' -- Pilih Penugasan (Mapel — Guru) -- '}
               options={penugasanKelas.map((p) => ({ value: p.guru_kelas_id, label: p.label }))}
             />
             {form.guru_kelas_id && (

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-server'
 import { guruAuth } from '@/lib/guru-auth'
+import { kirimNotifikasiKeKelas } from '@/lib/notifikasi'
 
 // Pengumuman (DATABASE_CONTEXT.md #17-18):
 // - pengumuman: judul, isi, per guru
@@ -136,6 +137,13 @@ export async function POST(request: NextRequest) {
       await getSupabaseAdmin().from('pengumuman').delete().eq('id', created.id)
       return NextResponse.json({ error: pkErr.message }, { status: 400 })
     }
+
+    await kirimNotifikasiKeKelas(kelasIds, {
+      judul: 'Pengumuman baru',
+      pesan: `Pengumuman baru: "${judul}".`,
+      tipe: 'pengumuman',
+      referensiId: created.id,
+    })
 
     return NextResponse.json({ message: 'Pengumuman berhasil dibuat.', id: created.id }, { status: 201 })
   } catch (err) {

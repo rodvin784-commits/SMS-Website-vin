@@ -29,6 +29,19 @@ type KelasTarget = {
   tingkat: number | null
 }
 
+function youtubeIdFromUrl(url: string | null): string | null {
+  if (!url) return null
+  const m = String(url).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/)
+  return m ? m[1] : null
+}
+function youtubeThumbnail(url: string | null): string | null {
+  const id = youtubeIdFromUrl(url)
+  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null
+}
+function thumbFor(v: VideoItem): string | null {
+  return v.thumbnail_url || youtubeThumbnail(v.video_url)
+}
+
 type VideoItem = {
   id: string
   mata_pelajaran_id: string
@@ -300,13 +313,20 @@ export function VideoMateriManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">URL Thumbnail (opsional)</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">URL Thumbnail (opsional — otomatis dari YouTube jika kosong)</label>
             <input
               value={formThumb}
               onChange={(e) => setFormThumb(e.target.value)}
-              placeholder="https://..."
+              placeholder="https://... (kosongkan untuk auto)"
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
             />
+            {(youtubeThumbnail(formUrl) || formThumb) && (
+              <div className="pt-2">
+                <p className="text-xs text-gray-500 mb-1">Preview thumbnail:</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={formThumb.trim() || youtubeThumbnail(formUrl) || ''} alt="Preview" className="w-full h-32 object-cover rounded-xl border border-gray-200" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -358,9 +378,9 @@ export function VideoMateriManager() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {video.map((v) => (
             <div key={v.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
-              {v.thumbnail_url ? (
+              {thumbFor(v) ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={v.thumbnail_url} alt={v.judul} className="w-full h-40 object-cover" />
+                <img src={thumbFor(v)!} alt={v.judul} className="w-full h-40 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
               ) : (
                 <div className="w-full h-40 bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
                   <Video className="h-12 w-12 text-white/80" />

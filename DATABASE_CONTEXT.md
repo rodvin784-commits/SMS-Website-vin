@@ -525,6 +525,7 @@ Struktur:
 - siswa_id UUID
 - file_url TEXT
 - nama_file TEXT
+- jawaban_teks TEXT
 - catatan TEXT
 - status TEXT
 - submitted_at TIMESTAMPTZ
@@ -547,6 +548,7 @@ pengumpulan_tugas.siswa_id → siswa.id
 
 Aturan:
 
+- Siswa mengumpulkan jawaban lewat file dan/atau teks (`jawaban_teks`); minimal salah satu terisi (ditegakkan di API route).
 - Siswa hanya dapat mengumpulkan tugas untuk dirinya sendiri.
 - Siswa tidak boleh mengubah pengumpulan siswa lain.
 - Guru hanya dapat melihat pengumpulan dari kelas yang diajar.

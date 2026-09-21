@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-server'
 import { guruAuth, getGuruKelas, getSiswaKelas } from '@/lib/guru-auth'
+import { kirimNotifikasiKeProfileIds } from '@/lib/notifikasi'
 
 // Schema tabel nilai (DATABASE_CONTEXT.md #19):
 // satu baris per (siswa, guru, mata_pelajaran, semester, tahun_ajaran):
@@ -191,6 +192,7 @@ export async function POST(request: NextRequest) {
 
     let saved = 0
     let cleared = 0
+    const siswaBerubah: string[] = []
 
     for (const entry of entries) {
       const siswaId = String(entry?.siswa_id ?? '')
@@ -268,6 +270,23 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
       }
+      siswaBerubah.push(siswaId)
+    }
+
+    // Notifikasi nilai untuk siswa yang nilainya berubah.
+    if (siswaBerubah.length > 0) {
+      const { data: profilRows } = await getSupabaseAdmin()
+        .from('siswa')
+        .select('profile_id')
+        .in('id', siswaBerubah)
+      const profileIds = ((profilRows ?? []) as { profile_id: string | null }[])
+        .map((r) => r.profile_id)
+        .filter((p): p is string => Boolean(p))
+      await kirimNotifikasiKeProfileIds(profileIds, {
+        judul: 'Nilai diperbarui',
+        pesan: `Nilai kamu untuk semester ${semester} (${tahunAjaran}) telah diperbarui.`,
+        tipe: 'nilai',
+      })
     }
 
     // Muat ulang data terbaru

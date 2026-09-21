@@ -37,9 +37,19 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: 
 const anon = createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession: false } })
 
 const SISWA_EMAIL = 'siswa.e2e@sekolah.sch.id'
-const SISWA_PASS = 'SiswaE2E#2026'
+const SISWA_PASS = process.env.E2E_SISWA_PASS
 const GURU_EMAIL = 'guru.test@sekolah.sch.id'
+const GURU_PASS = process.env.E2E_GURU_PASS
 const ORIGIN = 'http://localhost:5173'
+
+if (!SISWA_PASS) {
+  console.error('Error: env E2E_SISWA_PASS belum diisi. Set sebelum menjalankan skrip ini.')
+  process.exit(1)
+}
+if (!GURU_PASS) {
+  console.error('Error: env E2E_GURU_PASS belum diisi. Set sebelum menjalankan skrip ini.')
+  process.exit(1)
+}
 
 let pass = 0
 let fail = 0
@@ -178,8 +188,8 @@ async function main() {
   const tugasList = tugasRes.json?.tugas ?? []
   const denganLampiran = tugasList.find((t) => t.lampiran_url)
   if (denganLampiran) {
-    const dl = await api('/api/siswa/tugas', { method: 'POST', token, body: { id: denganLampiran.id } })
-    check('POST /tugas (lampiran) -> signed URL', dl.status === 200 && typeof dl.json?.url === 'string' && dl.json.url.includes('sign'), `status=${dl.status} ${JSON.stringify(dl.json)?.slice(0, 100)}`)
+    const dl = await api('/api/siswa/tugas/download', { method: 'POST', token, body: { id: denganLampiran.id } })
+    check('POST /tugas/download (lampiran) -> signed URL', dl.status === 200 && typeof dl.json?.url === 'string' && dl.json.url.includes('sign'), `status=${dl.status} ${JSON.stringify(dl.json)?.slice(0, 100)}`)
   } else {
     console.log('  ⏭️  Tidak ada tugas berlampiran — lewati uji unduh lampiran')
   }
@@ -198,6 +208,16 @@ async function main() {
   console.log('\n▶ Upload pengumpulan tugas')
   const tugasBisaKumpul = tugasList.find((t) => t.status === 'published' && !t.pengumpulan)
   if (tugasBisaKumpul) {
+    // Negatif: tanpa file DAN tanpa teks -> 400.
+    const fdKosong = new FormData()
+    fdKosong.append('tugas_id', tugasBisaKumpul.id)
+    const upKosong = await fetch(`${BASE}/api/siswa/pengumpulan`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fdKosong,
+    })
+    check('POST /pengumpulan (tanpa file & teks) -> 400', upKosong.status === 400, `status=${upKosong.status}`)
+
     const fd = new FormData()
     fd.append('tugas_id', tugasBisaKumpul.id)
     fd.append('catatan', 'Uji e2e pengumpulan')
@@ -208,7 +228,7 @@ async function main() {
       body: fd,
     })
     const upJson = await up.json().catch(() => null)
-    check('POST /pengumpulan (multipart) -> 201', up.status === 201, `status=${up.status} ${JSON.stringify(upJson)?.slice(0, 120)}`)
+    check('POST /pengumpulan (multipart file) -> 201', up.status === 201, `status=${up.status} ${JSON.stringify(upJson)?.slice(0, 120)}`)
 
     // Status tugas kini harus terkumpul.
     const tugasSetelah = await api('/api/siswa/tugas', { token })
@@ -220,6 +240,26 @@ async function main() {
       const dl = await api('/api/siswa/pengumpulan/download', { method: 'POST', token, body: { pengumpulan_id: baris.pengumpulan.id } })
       check('POST /pengumpulan/download -> signed URL', dl.status === 200 && typeof dl.json?.url === 'string', `status=${dl.status} ${JSON.stringify(dl.json)?.slice(0, 100)}`)
     }
+
+    // Jawaban teks saja (tanpa file) -> 201 + round-trip + full-replace.
+    const fdTeks = new FormData()
+    fdTeks.append('tugas_id', tugasBisaKumpul.id)
+    fdTeks.append('jawaban_teks', 'Uji e2e jawaban teks dari siswa')
+    const upTeks = await fetch(`${BASE}/api/siswa/pengumpulan`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fdTeks,
+    })
+    const upTeksJson = await upTeks.json().catch(() => null)
+    check('POST /pengumpulan (teks saja) -> 201', upTeks.status === 201, `status=${upTeks.status} ${JSON.stringify(upTeksJson)?.slice(0, 120)}`)
+
+    const tugasSetelahTeks = await api('/api/siswa/tugas', { token })
+    const barisTeks = (tugasSetelahTeks.json?.tugas ?? []).find((t) => t.id === tugasBisaKumpul.id)
+    check('jawaban_teks round-trip via GET /tugas', barisTeks?.pengumpulan?.jawaban_teks === 'Uji e2e jawaban teks dari siswa', JSON.stringify(barisTeks?.pengumpulan))
+    check('Submit teks menimpa file lama (nama_file null)', barisTeks?.pengumpulan?.nama_file == null, JSON.stringify(barisTeks?.pengumpulan))
+
+    const dlTanpaFile = await api('/api/siswa/pengumpulan/download', { method: 'POST', token, body: { pengumpulan_id: barisTeks.pengumpulan.id } })
+    check('POST /pengumpulan/download tanpa file -> 400', dlTanpaFile.status === 400, `status=${dlTanpaFile.status}`)
 
     // Notifikasi pengumpulan masuk.
     const notif = await api('/api/siswa/notifikasi', { token })
@@ -249,10 +289,10 @@ async function main() {
   const { data: guruByEmail } = await admin.from('profiles').select('id').eq('email', GURU_EMAIL).maybeSingle()
   guruId = guruId || guruByEmail?.id
   if (guruId) {
-    await admin.auth.admin.updateUserById(guruId, { password: 'GuruTest#2026' })
+    await admin.auth.admin.updateUserById(guruId, { password: GURU_PASS })
     const { data: guruAuth } = await admin.auth.admin.getUserById(guruId)
     const guruLoginEmail = guruAuth?.user?.email || GURU_EMAIL
-    const { data: guruSess, error: guruErr } = await anon.auth.signInWithPassword({ email: guruLoginEmail, password: 'GuruTest#2026' })
+    const { data: guruSess, error: guruErr } = await anon.auth.signInWithPassword({ email: guruLoginEmail, password: GURU_PASS })
     if (!guruErr && guruSess?.session) {
       const guruToken = guruSess.session.access_token
       const asGuru = await api('/api/siswa/me', { token: guruToken })

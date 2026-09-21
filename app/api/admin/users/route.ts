@@ -161,8 +161,7 @@ export async function POST(request: Request) {
       if (!nis || String(nis).trim() === '') {
         return NextResponse.json({ error: 'NIS wajib diisi untuk akun siswa' }, { status: 400 })
       }
-      const resolvedKelasId = await validKelasId(supabaseAdmin, kelas_id)
-      if (!resolvedKelasId) {
+      if (!(await validKelasId(supabaseAdmin, kelas_id))) {
         return NextResponse.json({ error: 'Kelas wajib diisi dan harus berstatus aktif' }, { status: 400 })
       }
     }
@@ -228,11 +227,19 @@ export async function POST(request: Request) {
       }
     } else {
       const resolvedKelasId = (await validKelasId(supabaseAdmin, kelas_id)) as string
+      // Ambil jurusan_id dari kelas yang dipilih
+      const { data: kelasData } = await supabaseAdmin
+        .from('kelas')
+        .select('jurusan_id')
+        .eq('id', resolvedKelasId)
+        .maybeSingle()
+      const jurusan_id = kelasData?.jurusan_id
       const { error: siswaError } = await supabaseAdmin.from('siswa').insert({
         profile_id: userId,
         nis: String(nis).trim(),
         nama_lengkap: nama,
         kelas_id: resolvedKelasId,
+        jurusan_id: jurusan_id,
       })
       if (siswaError) {
         await supabaseAdmin.auth.admin.deleteUser(userId)
@@ -391,12 +398,21 @@ export async function PUT(request: Request) {
     }
 
     if (finalRole === 'siswa') {
-      const siswaPayload: { nis?: string; nama_lengkap?: string; kelas_id?: string } = {}
+      const siswaPayload: { nis?: string; nama_lengkap?: string; kelas_id?: string; jurusan_id?: string | null } = {}
       if (nis !== undefined) siswaPayload.nis = String(nis).trim()
       if (nama !== undefined) siswaPayload.nama_lengkap = nama
       if (kelas_id !== undefined) {
         const inlineKelas = await validKelasId(supabaseAdmin, kelas_id)
-        if (inlineKelas) siswaPayload.kelas_id = inlineKelas
+        if (inlineKelas) {
+          siswaPayload.kelas_id = inlineKelas
+          // Ambil jurusan_id dari kelas yang dipilih
+          const { data: kelasData } = await supabaseAdmin
+            .from('kelas')
+            .select('jurusan_id')
+            .eq('id', inlineKelas)
+            .maybeSingle()
+          siswaPayload.jurusan_id = kelasData?.jurusan_id
+        }
       }
 
       const { data: siswaRow } = await supabaseAdmin
@@ -411,11 +427,21 @@ export async function PUT(request: Request) {
         }
       } else {
         const kelasFinal = (await validKelasId(supabaseAdmin, kelas_id ?? null)) ?? undefined
+        let jurusanFinal: string | null | undefined = undefined
+        if (kelasFinal) {
+          const { data: kelasData } = await supabaseAdmin
+            .from('kelas')
+            .select('jurusan_id')
+            .eq('id', kelasFinal)
+            .maybeSingle()
+          jurusanFinal = kelasData?.jurusan_id
+        }
         const { error: insertErr } = await supabaseAdmin.from('siswa').insert({
           profile_id: id,
           nis: nis ? String(nis).trim() : '',
           nama_lengkap: nama ?? existingProfile.nama_lengkap ?? '',
           kelas_id: kelasFinal,
+          jurusan_id: jurusanFinal,
         })
         if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 400 })
       }

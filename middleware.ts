@@ -23,7 +23,7 @@ function buildCorsHeaders(origin: string | null): Record<string, string> {
   return {}
 }
 
-export default async function proxy(request: NextRequest) {
+export default async function middleware(request: NextRequest) {
   const cors = buildCorsHeaders(request.headers.get('origin'))
 
   // Preflight dari WebView mobile.

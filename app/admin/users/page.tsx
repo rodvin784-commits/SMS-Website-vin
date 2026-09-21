@@ -52,6 +52,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [stats, setStats] = useState<UserStats>({ total: 0, guru: 0, siswa: 0, active: 0, inactive: 0 })
+  const [refreshKey, setRefreshKey] = useState(0)
 
   // Filter State
   const [searchQuery, setSearchQuery] = useState('')
@@ -129,7 +130,7 @@ export default function AdminUsersPage() {
 
     loadData()
     return () => { cancelled = true }
-  }, [roleFilter])
+  }, [roleFilter, refreshKey])
 
   // Refresh data
   const handleRefresh = useCallback(async () => {
@@ -196,6 +197,7 @@ export default function AdminUsersPage() {
 
       showFeedback('success', 'Pengguna berhasil ditambahkan!')
       setIsCreateModalOpen(false)
+      setRefreshKey(k => k + 1)
     } catch (err) {
       showFeedback('error', getErrorMessage(err))
     } finally {
@@ -238,6 +240,7 @@ export default function AdminUsersPage() {
 
       showFeedback('success', data.password ? 'Data & password pengguna berhasil diperbarui!' : 'Data pengguna berhasil diperbarui!')
       setIsEditModalOpen(false)
+      setRefreshKey(k => k + 1)
     } catch (err) {
       showFeedback('error', getErrorMessage(err))
     } finally {
@@ -261,6 +264,7 @@ export default function AdminUsersPage() {
       }
 
       showFeedback('success', 'Pengguna berhasil dihapus!')
+      setRefreshKey(k => k + 1)
     } catch (err) {
       showFeedback('error', getErrorMessage(err))
     }

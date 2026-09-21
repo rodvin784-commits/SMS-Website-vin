@@ -273,6 +273,155 @@ export async function POST(request: Request) {
   }
 }
 
+// PUT /api/admin/jadwal
+// Body: { id, hari, jam_mulai, jam_selesai, ruangan?, guru_kelas_id? }
+// guru_kelas_id opsional — jika kosong, penugasan (guru/mapel/kelas) lama dipertahankan.
+export async function PUT(request: Request) {
+  try {
+    const auth = await adminCheck()
+    if (!auth.ok) return denyResponse()
+
+    const supabaseAdmin = getSupabaseAdmin()
+    const body = await request.json()
+    const { id, hari, jam_mulai, jam_selesai, ruangan, guru_kelas_id } = body
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID jadwal wajib diisi' }, { status: 400 })
+    }
+    if (!HARI_VALID.includes(hari)) {
+      return NextResponse.json({ error: 'Hari tidak valid' }, { status: 400 })
+    }
+
+    const mulai = parseJam(jam_mulai)
+    const selesai = parseJam(jam_selesai)
+    if (!mulai || !selesai) {
+      return NextResponse.json({ error: 'Format jam harus HH:MM (contoh: 07:30)' }, { status: 400 })
+    }
+    if (selesai <= mulai) {
+      return NextResponse.json({ error: 'Jam selesai harus lebih besar dari jam mulai' }, { status: 400 })
+    }
+
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from('jadwal')
+      .select('id, guru_id, mata_pelajaran_id, kelas_id, tahun_ajaran')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (existingError) {
+      return NextResponse.json({ error: existingError.message }, { status: 400 })
+    }
+    if (!existing) {
+      return NextResponse.json({ error: 'Jadwal tidak ditemukan' }, { status: 404 })
+    }
+
+    type JadwalExisting = {
+      id: string
+      guru_id: string
+      mata_pelajaran_id: string
+      kelas_id: string
+      tahun_ajaran: string | null
+    }
+
+    const lama = existing as unknown as JadwalExisting
+    let guruId = lama.guru_id
+    let mapelId = lama.mata_pelajaran_id
+    let kelasId = lama.kelas_id
+    let tahunAjaran = lama.tahun_ajaran
+
+    if (guru_kelas_id) {
+      const { data: penugasan, error: penugasanError } = await supabaseAdmin
+        .from('guru_kelas')
+        .select('id, guru_id, mata_pelajaran_id, kelas_id, tahun_ajaran')
+        .eq('id', guru_kelas_id)
+        .maybeSingle()
+
+      if (penugasanError) {
+        return NextResponse.json({ error: penugasanError.message }, { status: 400 })
+      }
+      if (!penugasan) {
+        return NextResponse.json({ error: 'Penugasan guru tidak ditemukan' }, { status: 400 })
+      }
+
+      type PenugasanRow = {
+        guru_id: string
+        mata_pelajaran_id: string
+        kelas_id: string
+        tahun_ajaran: string | null
+      }
+      const p = penugasan as unknown as PenugasanRow
+      guruId = p.guru_id
+      mapelId = p.mata_pelajaran_id
+      kelasId = p.kelas_id
+      tahunAjaran = p.tahun_ajaran ?? tahunAjaran
+    }
+
+    // Cek bentrok di kelas yang sama (waktu tumpang tindih pada hari yang sama), kecuali baris ini
+    const { data: bentrokKelas, error: kbError } = await supabaseAdmin
+      .from('jadwal')
+      .select('id')
+      .eq('hari', hari)
+      .eq('kelas_id', kelasId)
+      .lt('jam_mulai', selesai)
+      .gt('jam_selesai', mulai)
+      .neq('id', id)
+
+    if (kbError) {
+      return NextResponse.json({ error: kbError.message }, { status: 400 })
+    }
+    if ((bentrokKelas ?? []).length > 0) {
+      return NextResponse.json(
+        { error: `Bentrok: kelas ini sudah ada jadwal pada ${hari} jam ${mulai}-${selesai}` },
+        { status: 400 }
+      )
+    }
+
+    // Cek bentrok untuk guru yang sama, kecuali baris ini
+    const { data: bentrokGuru, error: gbError } = await supabaseAdmin
+      .from('jadwal')
+      .select('id')
+      .eq('hari', hari)
+      .eq('guru_id', guruId)
+      .lt('jam_mulai', selesai)
+      .gt('jam_selesai', mulai)
+      .neq('id', id)
+
+    if (gbError) {
+      return NextResponse.json({ error: gbError.message }, { status: 400 })
+    }
+    if ((bentrokGuru ?? []).length > 0) {
+      return NextResponse.json(
+        { error: `Bentrok: guru ini sudah mengajar di waktu tersebut (${hari} ${mulai}-${selesai})` },
+        { status: 400 }
+      )
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('jadwal')
+      .update({
+        guru_id: guruId,
+        mata_pelajaran_id: mapelId,
+        kelas_id: kelasId,
+        tahun_ajaran: tahunAjaran,
+        hari,
+        jam_mulai: mulai,
+        jam_selesai: selesai,
+        ruangan: typeof ruangan === 'string' && ruangan.trim() !== '' ? ruangan.trim() : null,
+      })
+      .eq('id', id)
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 400 })
+    }
+
+    return NextResponse.json(
+      { message: `Jadwal berhasil diperbarui (${hari} ${mulai}-${selesai})` },
+      { status: 200 }
+    )
+  } catch (err) {
+    return serverError(err, 'Error updating jadwal:')
+  }
+}
+
 // DELETE /api/admin/jadwal?id=<jadwal_id>
 export async function DELETE(request: NextRequest) {
   try {

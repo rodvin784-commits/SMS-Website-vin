@@ -42,7 +42,7 @@ WHERE schemaname = 'public'
 ORDER BY tablename;
 
 -- 4. Cek tabel yang dipakai aplikasi ini secara khusus
---    (profiles, mata_pelajaran, kelas, jurusan, guru_mengajar)
+--    (tabel-tabel utama sesuai DATABASE_CONTEXT.md)
 SELECT
   c.relname AS tabel,
   c.relrowsecurity AS rls_aktif
@@ -50,5 +50,12 @@ FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'public'
   AND c.relkind = 'r'
-  AND c.relname IN ('profiles', 'mata_pelajaran', 'kelas', 'jurusan', 'guru_mengajar')
+  AND c.relname IN (
+    'profiles', 'mata_pelajaran', 'kelas', 'jurusan',
+    'guru_kelas', 'siswa', 'guru', 'nilai', 'jadwal',
+    'materi', 'materi_kelas', 'tugas', 'tugas_kelas',
+    'pengumpulan_tugas', 'video_materi', 'video_kelas',
+    'pengumuman', 'pengumuman_kelas', 'notifikasi',
+    'guru_mata_pelajaran'
+  )
 ORDER BY c.relname;

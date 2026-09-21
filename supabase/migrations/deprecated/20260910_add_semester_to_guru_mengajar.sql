@@ -1,3 +1,4 @@
+-- DEPRECATED: tabel ini tidak dipakai lagi sejak rewrite 2026-09-16
 -- Migration: Tambah kolom semester di guru_mengajar
 -- Jalankan di: Supabase Dashboard > SQL Editor
 -- Catatan: tahun_ajaran sudah ada di tabel kelas.

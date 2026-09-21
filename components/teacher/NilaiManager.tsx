@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Award, BookOpen, GraduationCap, Save } from 'lucide-react'
+import { Award, BookOpen, Download, GraduationCap, Printer, Save } from 'lucide-react'
 
 type GuruAssignment = {
   id: string
@@ -136,6 +136,27 @@ export function NilaiManager() {
     void init()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, semester, tahunAjaran])
+
+  const handleExportCSV = () => {
+    if (siswa.length === 0 || !selected) return
+    const header = ['No', 'NIS', 'Nama', 'Tugas', 'UTS', 'UAS', 'Nilai Akhir', 'Predikat']
+    const rows = siswa.map((s, idx) => {
+      const p = s.nilai_akhir !== null ? predikat(s.nilai_akhir).label.split(' — ')[0] : ''
+      return [String(idx + 1), s.nis, `"${s.nama_lengkap.replace(/"/g, '""')}"`, s.nilai.tugas ?? '', s.nilai.uts ?? '', s.nilai.uas ?? '', s.nilai_akhir ?? '', p]
+    })
+    const csv = [header.join(','), ...rows.map((r) => r.join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `nilai-${selected.mapel_nama ?? selected.mata_pelajaran_id}-${selected.kelas_nama ?? selected.kelas_id}-${semester}-${tahunAjaran || selected.tahun_ajaran || ''}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handlePrint = () => {
+    window.print()
+  }
 
   const refreshDraft = (list: NilaiSiswa[], t: Tab) => {
     if (t === 'rapor') return
@@ -336,14 +357,24 @@ export function NilaiManager() {
                 {selected.kelas_nama} · Semester {SEMESTER_LABEL[semester]} · T.A. {tahunAjaran || selected.tahun_ajaran || '—'}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {tab === 'rapor' ? (
-                rataKelas !== null && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 text-xs font-bold">
-                    <Award className="h-3.5 w-3.5" />
-                    Rata-rata kelas: {rataKelas}
-                  </span>
-                )
+                <>
+                  {rataKelas !== null && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 text-xs font-bold">
+                      <Award className="h-3.5 w-3.5" />
+                      Rata-rata: {rataKelas}
+                    </span>
+                  )}
+                  <button onClick={handleExportCSV} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 text-xs font-bold hover:bg-gray-50">
+                    <Download className="h-3.5 w-3.5" />
+                    CSV
+                  </button>
+                  <button onClick={handlePrint} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 text-xs font-bold hover:bg-gray-50">
+                    <Printer className="h-3.5 w-3.5" />
+                    PDF/Print
+                  </button>
+                </>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold">
                   {terisi}/{siswa.length} terisi

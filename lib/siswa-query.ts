@@ -44,6 +44,7 @@ export async function getTugasKelas(kelasId: string) {
         tanggal_mulai,
         deadline,
         lampiran_url,
+        foto_urls,
         status,
         created_at,
         updated_at,
@@ -68,6 +69,7 @@ export async function getTugasKelas(kelasId: string) {
       tanggal_mulai: string
       deadline: string
       lampiran_url: string | null
+      foto_urls: string[] | null
       status: string
       created_at: string
       updated_at: string
@@ -83,6 +85,7 @@ export async function getTugasKelas(kelasId: string) {
     tanggal_mulai: string
     deadline: string
     lampiran_url: string | null
+    foto_urls: string[] | null
     status: string
     created_at: string
     guru_nama: string
@@ -103,6 +106,7 @@ export async function getTugasKelas(kelasId: string) {
       tanggal_mulai: t.tanggal_mulai,
       deadline: t.deadline,
       lampiran_url: t.lampiran_url,
+      foto_urls: (t as unknown as { foto_urls: string[] | null }).foto_urls ?? null,
       status: t.status,
       created_at: t.created_at,
       guru_nama: pickOne(t.guru)?.nama_lengkap ?? 'Guru',
@@ -455,7 +459,7 @@ export async function getNilaiSiswa(siswaId: string) {
 export async function getPengumpulanSiswa(siswaId: string, tugasId: string) {
   const { data, error } = await getSupabaseAdmin()
     .from('pengumpulan_tugas')
-    .select('id, tugas_id, siswa_id, file_url, nama_file, catatan, status, submitted_at, updated_at')
+    .select('id, tugas_id, siswa_id, file_url, nama_file, foto_urls, jawaban_teks, catatan, status, submitted_at, updated_at, nilai, feedback, dinilai_at')
     .eq('siswa_id', siswaId)
     .eq('tugas_id', tugasId)
     .maybeSingle()

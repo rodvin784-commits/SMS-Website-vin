@@ -11,7 +11,7 @@ Aplikasi manajemen sekolah untuk admin (panel admin) dan guru (panel guru): peng
 
 - **Framework:** Next.js 16.3 + React 19
 - **Database:** Supabase (PostgreSQL)
-- **Auth:** Supabase Auth + custom middleware (`proxy.ts`)
+- **Auth:** Supabase Auth + Next.js middleware (`middleware.ts`)
 - **UI:** Tailwind CSS v4, lucide-react icons
 - **Language:** TypeScript
 
@@ -27,13 +27,24 @@ app/
 │   │   ├── mata-pelajaran/[id]/penugasan/route.ts
 │   │   ├── kelas/route.ts
 │   │   ├── jurusan/route.ts
-│   │   └── jadwal/route.ts
+│   │   └── jadwal/route.ts        # GET/POST/PUT/DELETE (PUT = edit entri jadwal)
+│   ├── siswa/                    # API aplikasi mobile siswa (read-only + kumpul tugas; CORS via middleware)
+│   │   ├── me/  dashboard/  jadwal/  materi/  nilai/  video/  pengumuman/
+│   │   ├── notifikasi/           # GET daftar + POST tandai dibaca
+│   │   ├── tugas/                # GET daftar tugas kelas + status pengumpulan
+│   │   ├── tugas/download/       # POST signed URL lampiran (bucket `tugas`)
+│   │   ├── materi/download/      # POST signed URL file materi
+│   │   └── pengumpulan/          # GET status + POST unggah jawaban; pengumpulan/download/ signed URL
 │   └── teacher/                # API khusus guru
 │       ├── mengajar/route.ts
 │       ├── jadwal/route.ts
-│       ├── presensi/route.ts
 │       ├── nilai/route.ts
-│       └── materi/route.ts
+│       ├── materi/route.ts
+│       ├── materi/download/route.ts
+│       ├── tugas/route.ts
+│       ├── pengumpulan/route.ts
+│       ├── video/route.ts
+│       └── pengumuman/route.ts
 ├── admin/                      # Halaman panel admin
 │   ├── dashboard/              # Dashboard dinamis (statistik + chart + aktivitas)
 │   ├── users/                  # Manajemen pengguna (guru & siswa)
@@ -44,14 +55,15 @@ app/
 └── teacher/
     ├── dashboard/              # Dashboard guru (mapel & kelas diampu + statistik)
     ├── mata-pelajaran/         # Mata pelajaran & kelas yang diampu
+    ├── tugas/                  # CRUD tugas + pengumpulan siswa
     ├── materi/                 # Materi & video pembelajaran (tambah/edit/hapus)
-    ├── presensi/               # Pengisian presensi siswa per pertemuan
+    ├── pengumuman/             # Buat/edit/hapus pengumuman ke kelas
     ├── jadwal/                 # Jadwal mengajar mingguan (Senin–Sabtu)
     └── nilai/                  # Input nilai & perhitungan rapor
 
 components/
 ├── admin/                      # UI modul admin (manager + modal)
-├── teacher/                    # UI modul guru (PresensiManager, MateriAjarManager, SubjectGroup, dst)
+├── teacher/                    # UI modul guru (TugasManager, VideoMateriManager, PengumumanManager, MateriAjarManager, dst)
 ├── layout/AppShell.tsx         # Kerangka sidebar + header (auto highlight nav)
 └── ui/                         # Komponen kecil (StatCard, dst)
 
@@ -59,9 +71,13 @@ hooks/useKelasOptions.ts        # Load daftar kelas aktif (tingkat 10–12)
 lib/
 ├── supabase.ts                 # Browser client (anon key)
 ├── supabase-server.ts          # getSupabaseAdmin (service role), getSessionUser, adminCheck, getProfileRole
-└── api-admin.ts                # Helper respons error admin
+├── api-admin.ts                # Helper respons error admin
+├── guru-auth.ts                # guruAuth, getGuruKelas, isAssigned, getSiswaKelas
+├── siswa-auth.ts               # Otorisasi sesi siswa untuk /api/siswa/*
+├── siswa-query.ts              # Query bersama data per kelas siswa
+└── notifikasi.ts               # kirimNotifikasiKeKelas / kirimNotifikasiKeProfileIds (best-effort)
 supabase/migrations/            # Skrip SQL (jalankan di Supabase SQL Editor)
-proxy.ts                        # Middleware auth: lindungi /admin/* dan /teacher/*
+middleware.ts                   # Middleware Next.js: auth guard + CORS preflight
 ```
 
 ## Struktur Database
@@ -71,28 +87,44 @@ proxy.ts                        # Middleware auth: lindungi /admin/* dan /teache
 | Tabel | Fungsi |
 |---|---|
 | `profiles` | Data pengguna (id = auth.users.id, `role`, `status`, `kelas_id` untuk siswa) |
+| `guru` | Data khusus guru (profile_id → profiles, NIP) |
+| `siswa` | Data khusus siswa (profile_id → profiles, NIS, `kelas_id` → kelas) |
 | `mata_pelajaran` | Mata pelajaran (kode, nama, deskripsi, status) |
 | `kelas` | Kelas (nama_kelas, `tingkat` 10–12, tahun_ajaran, jurusan_id, `wali_kelas_id`) |
 | `jurusan` | Daftar jurusan |
-| `guru_mengajar` | Junction guru ↔ mata_pelajaran + kelas (+ semester, materi) |
-| `jadwal_pelajaran` | Pertemuan mingguan: guru_mengajar_id + hari (1–6) + jam mulai/selesai + ruangan |
-| `presensi` | Kehadiran siswa per (guru_mengajar_id, tanggal, siswa_id) |
-| `nilai` | Nilai siswa per komponen (harian/tugas/uts/uas) di (guru_mengajar_id, siswa_id) |
-| `materi_kelas` | Materi & video pembelajaran per penugasan (judul, deskripsi, video_url, materi_url) |
+| `guru_mata_pelajaran` | Junction guru ↔ mata pelajaran yang diajarkan |
+| `guru_kelas` | Penugasan guru: guru + mata pelajaran + kelas + tahun ajaran |
+| `jadwal` | Jadwal pelajaran mingguan: guru + mapel + kelas + `hari TEXT` (Senin–Sabtu) + jam + ruangan |
+| `tugas` | Tugas yang dibuat guru (draft/published/closed) + lampiran |
+| `tugas_kelas` | Junction tugas ↔ kelas tujuan |
+| `pengumpulan_tugas` | Jawaban/file tugas siswa per tugas |
+| `materi` | Materi pembelajaran (file via Storage bucket `materi`) |
+| `materi_kelas` | Junction materi ↔ kelas tujuan |
+| `video_materi` | Video pembelajaran (URL YouTube/Drive) |
+| `video_kelas` | Junction video ↔ kelas tujuan |
+| `pengumuman` | Pengumuman yang dibuat guru |
+| `pengumuman_kelas` | Junction pengumuman ↔ kelas tujuan |
+| `nilai` | Nilai siswa per (siswa, mapel, semester, tahun ajaran): tugas, uts, uas, nilai_akhir |
+| `notifikasi` | Notifikasi untuk user (tugas baru, materi, nilai, dll.) |
 
 ### Relasi
 
 ```
-profiles (guru) ──1:N──► guru_mengajar ◄──N:1── mata_pelajaran
-                              │
-                              ├──N:1── kelas
-                              │
-                              ├──1:N── jadwal_pelajaran
-                              ├──1:N── presensi ──N:1──► profiles (siswa)
-                              └──1:N── nilai ──N:1──► profiles (siswa)
+profiles (guru) ──1:1──► guru ──1:N──► guru_kelas ◄──N:1── kelas
+                               ├──1:N──► guru_mata_pelajaran ◄──N:1── mata_pelajaran
+                               ├──1:N──► jadwal (hari TEXT)
+                               ├──1:N──► tugas ──1:N──► tugas_kelas ──N:1──► kelas
+                               ├──1:N──► materi ──1:N──► materi_kelas ──N:1──► kelas
+                               ├──1:N──► video_materi ──1:N──► video_kelas ──N:1──► kelas
+                               ├──1:N──► pengumuman ──1:N──► pengumuman_kelas ──N:1──► kelas
+                               └──1:N──► nilai ──N:1──► siswa
 
-kelas ──N:1── jurusan
-kelas ──1:N── profiles (siswa via profiles.kelas_id)
+profiles (siswa) ──1:1──► siswa ──N:1──► kelas
+                               ├──1:N──► pengumpulan_tugas
+                               ├──1:N──► nilai
+                               └──1:N──► notifikasi
+
+kelas ──N:1──► jurusan
 ```
 
 ### Kolom & Constraint Penting
@@ -100,11 +132,12 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 - `profiles.status` / `mata_pelajaran.status` / `kelas.status` — `true` = aktif, `false` = nonaktif
 - `kelas.tingkat` — hanya 10, 11, 12 (validasi di API & pilihan UI)
 - `kelas.wali_kelas_id` — FK ke `profiles(id) ON DELETE SET NULL`; wali kelas (homeroom) ≠ guru pengampu; satu guru hanya wali satu kelas (unique index parsial)
-- `profiles.kelas_id` — FK ke `kelas(id) ON DELETE SET NULL`, hanya terisi untuk role siswa
-- `jadwal_pelajaran.hari` — 1 = Senin … 6 = Sabtu; `jam_selesai > jam_mulai`
-- `presensi.status` — `hadir` / `terlambat` / `izin` / `sakit` / `alfa`
-- `presensi` UNIQUE `(guru_mengajar_id, siswa_id, tanggal)` — isi ulang = update, tidak ganda
-- `nilai` UNIQUE `(guru_mengajar_id, siswa_id, jenis_nilai)`; `jenis_nilai` = `harian`/`tugas`/`uts`/`uas`; skala 0–100
+- `siswa.kelas_id` — FK ke `kelas(id)`, menentukan kelas aktif siswa
+- `guru_kelas` — penugasan guru: guru + kelas + mata_pelajaran + tahun_ajaran; dasar otorisasi guru
+- `jadwal.hari` — TEXT: "Senin", "Selasa", …, "Sabtu"; `jam_selesai > jam_mulai`
+- `nilai` — 1 baris per (siswa, mapel, semester, tahun ajaran); kolom `tugas`, `uts`, `uas`, `nilai_akhir` (30/30/40); skala 0–100
+- `tugas.status` — `draft` / `published` / `closed`
+- `pengumpulan_tugas.status` — `belum_dikumpulkan` / `dikumpulkan` / `terlambat` / `dinilai`
 - Semua API tulis menggunakan service role (bypass RLS); browser hanya boleh SELECT
 
 ### Migrations (urut sesuai tanggal, jalankan di SQL Editor)
@@ -113,14 +146,15 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 |---|---|
 | `20260909_add_deskripsi_to_mata_pelajaran.sql` | Kolom `deskripsi` di mata_pelajaran |
 | `20260909_add_updated_at_and_fix_kurusan.sql` | `updated_at` + trigger; perbaikan typo `kurusan` |
-| `20260910_add_semester_to_guru_mengajar.sql` | Kolom `semester` |
-| `20260910_create_jadwal_pelajaran.sql` | Tabel `jadwal_pelajaran` |
 | `20260910_enable_rls_and_policies.sql` | RLS + policy SELECT untuk authenticated |
 | `20260915_add_kelas_id_to_profiles.sql` | Kolom `kelas_id` di profiles (relasi siswa→kelas) |
 | `20260915_add_wali_kelas.sql` | Kolom `wali_kelas_id` di kelas + unique index (satu guru satu wali) |
-| `20260915_create_presensi.sql` | Tabel `presensi` + trigger updated_at |
-| `20260915_create_nilai.sql` | Tabel `nilai` (komponen harian/tugas/uts/uas) |
+| `20260915_create_nilai.sql` | Tabel `nilai` (tugas/uts/uas/nilai_akhir per semester) |
 | `20260915_create_materi_kelas.sql` | Tabel `materi_kelas` (materi & video pembelajaran guru) |
+| `20260922_add_jawaban_teks_to_pengumpulan_tugas.sql` | Kolom `jawaban_teks` di pengumpulan_tugas (jawaban teks siswa) |
+
+> **Arsip usang:** migration berikut dipindahkan ke `supabase/migrations/deprecated/` karena tabelnya tidak dipakai lagi sejak rewrite 2026-09-16:
+> `20260910_add_semester_to_guru_mengajar.sql`, `20260910_create_jadwal_pelajaran.sql`, `20260915_create_presensi.sql`.
 
 ## Routes
 
@@ -150,7 +184,19 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 ### Auth
 
 - `/login` — halaman login (Supabase Auth)
-- `proxy.ts` — middleware melindungi `/admin/*` dan `/teacher/*`
+- `middleware.ts` — middleware Next.js di root; melindungi `/admin/*` dan `/teacher/*` (redirect ke `/login` bila belum login), serta menangani CORS preflight untuk `/api/siswa/*` dari aplikasi mobile
+
+## Middleware
+
+File `middleware.ts` di root proyek aktif sebagai middleware Next.js.
+
+Fungsi utama:
+
+1. **Auth guard** — memeriksa sesi Supabase Auth via `getUser()`; redirect ke `/login` bila user belum login dan mengakses `/admin/*` atau `/teacher/*`.
+2. **CORS untuk API siswa** — menempelkan header CORS (`Access-Control-Allow-Origin`, dll.) pada response `/api/siswa/*` bila origin peminta ada di whitelist `NEXT_PUBLIC_MOBILE_ORIGIN`.
+3. **Preflight OPTIONS** — menangani request `OPTIONS` dari WebView mobile agar CORS berjalan lancar.
+
+Matcher: `/admin/:path*`, `/teacher/:path*`, `/api/siswa/:path*`.
 
 ## API
 
@@ -164,7 +210,7 @@ kelas ──1:N── profiles (siswa via profiles.kelas_id)
 | `/api/admin/mata-pelajaran/[id]/penugasan` | GET/POST/PUT/DELETE | Kelola penugasan guru per mapel (kelas + semester + materi) |
 | `/api/admin/kelas` | GET/POST/PUT/DELETE | CRUD kelas; GET menyertakan `jumlah_siswa` (nested count) + `wali_kelas_nama`; POST/PUT terima `wali_kelas_id` (validasi guru aktif & belum jadi wali kelas lain) |
 | `/api/admin/jurusan` | GET/POST/PUT/DELETE | CRUD jurusan |
-| `/api/admin/jadwal` | GET/POST/DELETE | Jadwal per kelas; GET penugasan menyertakan `kelas_id`, `mapel_nama`, `guru_nama` |
+| `/api/admin/jadwal` | GET/POST/PUT/DELETE | Jadwal per kelas; GET penugasan menyertakan `kelas_id`, `mapel_nama`, `guru_nama`; PUT mengubah entri (validasi bentrok kelas & guru kecuali dirinya sendiri; `guru_kelas_id` kosong = pertahankan penugasan lama) |
 
 ### Guru (`/api/teacher/*`)
 
@@ -176,12 +222,32 @@ Semua endpoint memverifikasi sesi guru via `lib/guru-auth.ts` (auth.uid → prof
 | `/api/teacher/jadwal` | GET | Jadwal mingguan dari tabel `jadwal` (hari TEXT, jam, ruangan) difilter penugasan guru_kelas |
 | `/api/teacher/nilai` | GET/POST | Roster + nilai per (siswa, mapel, semester, tahun ajaran); POST menghitung `nilai_akhir` otomatis (30% tugas + 30% UTS + 40% UAS) |
 | `/api/teacher/tugas` | GET/POST/PUT/DELETE | CRUD tugas + target kelas (`tugas_kelas`); POST mendukung multipart dengan lampiran ke bucket `tugas` |
-| `/api/teacher/pengumpulan` | GET | Roster siswa + status pengumpulan per tugas (guru harus mengajar kelas target) |
+| `/api/teacher/pengumpulan` | GET | Roster siswa + status pengumpulan per tugas — termasuk jawaban teks siswa (guru harus mengajar kelas target) |
 | `/api/teacher/pengumpulan` | POST | Signed URL (10 menit) unduh file jawaban dari bucket private `pengumpulan` |
 | `/api/teacher/materi` | GET/POST/PUT/DELETE | CRUD materi (file via bucket `materi` / deskripsi) + target kelas (`materi_kelas`) |
 | `/api/teacher/materi/download` | POST | Signed URL (10 menit) unduh file materi milik guru |
 | `/api/teacher/video` | GET/POST/PUT/DELETE | CRUD video pembelajaran (`video_materi` + `video_kelas`); URL divalidasi |
 | `/api/teacher/pengumuman` | GET/POST/PUT/DELETE | CRUD pengumuman (`pengumuman` + `pengumuman_kelas`); hanya ke kelas yang diajar |
+
+### Siswa (`/api/siswa/*`)
+
+Dipakai aplikasi mobile siswa (`siswa_apk_by_vin_kuadrat`). Semua endpoint memverifikasi sesi siswa via `lib/siswa-auth.ts` (auth.uid → profiles → siswa) dan query diskop ke kelas milik siswa (`siswa.kelas_id`) — server-side, bukan filter frontend. Header CORS ditempel di `middleware.ts` untuk origin di `NEXT_PUBLIC_MOBILE_ORIGIN`.
+
+| Endpoint | Method | Fungsi |
+|---|---|---|
+| `/api/siswa/me` | GET | Profil ringkas siswa login (untuk header aplikasi mobile) |
+| `/api/siswa/dashboard` | GET | Statistik kelas + jadwal hari ini + aktivitas terbaru |
+| `/api/siswa/jadwal` | GET | Jadwal pelajaran kelas (hari TEXT Senin–Sabtu) |
+| `/api/siswa/materi` | GET | Materi untuk kelas siswa |
+| `/api/siswa/materi/download` | POST | Signed URL (10 mnt) unduh file materi milik kelas |
+| `/api/siswa/nilai` | GET | Nilai milik siswa sendiri (dicocokkan server-side) |
+| `/api/siswa/notifikasi` | GET/POST | Daftar notifikasi / tandai dibaca (`{ ids: string[] }`) |
+| `/api/siswa/pengumuman` | GET | Pengumuman untuk kelas siswa |
+| `/api/siswa/tugas` | GET | Daftar tugas kelas + status pengumpulan siswa tsb |
+| `/api/siswa/tugas/download` | POST | Signed URL unduh lampiran tugas (bucket private `tugas`) |
+| `/api/siswa/video` | GET | Video pembelajaran untuk kelas siswa |
+| `/api/siswa/pengumpulan` | GET/POST | Status pengumpulan per tugas / unggah jawaban (file dan/atau teks via `jawaban_teks`, minimal salah satu; file → multipart bucket private `pengumpulan`) |
+| `/api/siswa/pengumpulan/download` | POST | Signed URL unduh file jawaban milik siswa |
 
 ## Keamanan & Pola Kode
 
@@ -198,8 +264,8 @@ Semua endpoint memverifikasi sesi guru via `lib/guru-auth.ts` (auth.uid → prof
 
 1. **Buat akun guru** — Manajemen Pengguna → Tambah Pengguna
 2. **Buat mata pelajaran** — Manajemen Mata Pelajaran → Tambah
-3. **Atur guru pengampu** — dari detail mapel: pilih guru + kelas + semester (+ materi) → Simpan
-4. **Hapus akun guru** — penugasan di `guru_mengajar` ikut terhapus (ON DELETE CASCADE)
+3. **Atur guru pengampu** — dari detail mapel: pilih guru + kelas + tahun ajaran → Simpan (disimpan ke `guru_kelas` dan `guru_mata_pelajaran`)
+4. **Hapus akun guru** — penugasan di `guru_kelas` dan `guru_mata_pelajaran` ikut terhapus (ON DELETE CASCADE)
 
 #### Relasi Siswa → Kelas
 
@@ -216,7 +282,7 @@ Semua endpoint memverifikasi sesi guru via `lib/guru-auth.ts` (auth.uid → prof
 
 #### Jadwal Pelajaran
 
-1. **Siapkan penugasan guru** terlebih dahulu (guru + mapel + kelas + semester)
+1. **Siapkan penugasan guru** terlebih dahulu (guru + mapel + kelas + tahun ajaran)
 2. Admin membuka **Jadwal Pelajaran** → pilih kelas → tambah entri (penugasan + hari + jam + ruangan)
 3. Blok jadwal tampil di papan mingguan per hari; bisa dihapus dengan konfirmasi
 
@@ -226,24 +292,18 @@ Prasyarat: guru harus sudah memiliki penugasan mengajar dari admin (lihat **Alur
 
 #### Login & Dashboard
 
-1. **Login** di `/login` dengan akun role `guru` → middleware (`proxy.ts`) mengizinkan akses `/teacher/*` dan redirect ke `/teacher/dashboard`
-2. **Dashboard Guru** (`/teacher/dashboard`) — kartu statistik: jumlah mata pelajaran, kelas diajar, jadwal hari ini, presensi diperiksa + daftar mapel & kelas yang diampu (dikelompokkan per mapel)
+1. **Login** di `/login` dengan akun role `guru` → middleware (`middleware.ts`) mengizinkan akses `/teacher/*` dan redirect ke `/teacher/dashboard`
+2. **Dashboard Guru** (`/teacher/dashboard`) — kartu statistik: jumlah mata pelajaran, kelas diajar, jadwal hari ini, tugas aktif + daftar mapel & kelas yang diampu (dikelompokkan per mapel)
 
 #### Mata Pelajaran
 
-1. Buka **Mata Pelajaran** (`/teacher/mata-pelajaran`) — daftar penugasan mengajar dikelompokkan per mapel: kelas, semester, tahun ajaran, dan materi
+1. Buka **Mata Pelajaran** (`/teacher/mata-pelajaran`) — daftar penugasan mengajar dikelompokkan per mapel: kelas dan tahun ajaran
 2. Header halaman menampilkan ringkasan jumlah mapel & kelas yang diampu
 
 #### Jadwal Mengajar
 
 1. Buka **Jadwal Mengajar** (`/teacher/jadwal`) — papan jadwal mingguan milik guru (Senin–Sabtu)
 2. Setiap sesi menampilkan jam mulai–selesai, mapel, kelas, dan ruangan; hari ini disorot hijau
-
-#### Presensi Siswa
-
-1. Guru membuka **Presensi Siswa** → pilih mapel & kelas (dari penugasan miliknya) + tanggal (maks. hari ini)
-2. Tandai status per siswa: Hadir / Terlambat / Izin / Sakit / Alfa (+ keterangan untuk izin/sakit)
-3. Klik **Simpan Presensi** — upsert per (penugasan, tanggal, siswa); isi ulang akan memperbarui, tidak menggandakan
 
 #### Nilai & Rapor
 
@@ -345,4 +405,40 @@ Panel guru ditulis ulang sepenuhnya mengikuti struktur database baru (lihat `DAT
 - Dihapus: `app/teacher/presensi/`, `app/api/teacher/presensi/`, `app/api/siswa/`, `components/teacher/PresensiManager.tsx`.
 
 **Prasyarat:** database sesuai `DATABASE_CONTEXT.md` (tabel guru, siswa, guru_kelas, tugas, tugas_kelas, pengumpulan_tugas, materi, materi_kelas, video_materi, video_kelas, pengumuman, pengumuman_kelas, nilai, jadwal, notifikasi + bucket materi/tugas/pengumpulan).
-- Siswa nantinya membaca materi lewat API siswa (READ saja) — belum tersedia pada pembaruan ini.
+- Siswa nantinya membaca materi lewat API siswa (READ saja) — belum tersedia pada pembaruan ini. *(Catatan: per 2026-09-19 API siswa sudah tersedia — lihat seksi "Siswa (`/api/siswa/*`)" di atas.)*
+
+### 2026-09-19 — Perbaikan unduh lampiran siswa, notifikasi aktif, edit jadwal admin
+
+**File baru:**
+
+| File | Isi |
+|---|---|
+| `app/api/siswa/tugas/download/route.ts` | Signed URL (10 mnt) unduh lampiran tugas (bucket private `tugas`) — handler sebelumnya salah tempat di `POST /api/siswa/tugas` sehingga aplikasi mobile selalu 404 |
+| `lib/notifikasi.ts` | Helper `kirimNotifikasiKeKelas()` & `kirimNotifikasiKeProfileIds()` — insert best-effort, kegagalan notifikasi dicatat tapi tidak membatalkan aksi utama |
+
+**Perubahan fitur:**
+
+- **Notifikasi siswa kini dibuat dari aksi guru** (sebelumnya hanya saat siswa mengumpulkan tugas): publikasi tugas (POST maupun transisi draft→published via PUT), materi baru, video baru, pengumuman baru → semua siswa di kelas target via `siswa.kelas_id`; nilai diperbarui → siswa yang bersangkutan. Tipe: `tugas` / `materi` / `video` / `pengumuman` / `nilai` (tabel `notifikasi`, DATABASE_CONTEXT.md #21).
+- **Edit jadwal admin:** `PUT /api/admin/jadwal` (validasi hari & jam; cek bentrok kelas dan guru dengan pengecualian baris sendiri; `guru_kelas_id` opsional = pertahankan penugasan lama) + tombol edit dan modal edit di `components/admin/JadwalManager.tsx` — sebelumnya entri hanya bisa dihapus lalu dibuat ulang.
+- `POST /api/siswa/tugas` kini hanya GET (daftar tugas + status pengumpulan); `scripts/e2e-siswa.js` disesuaikan ke endpoint download baru.
+- Dead code `jurusan_id` di `app/api/admin/users/route.ts` dihapus (insert siswa sudah memakai lookup jurusan dari kelas yang benar) — lint warning menjadi 0.
+
+**Catatan terbuka (butuh keputusan sebelum dikerjakan):**
+
+- RLS baru diterapkan pada tabel usang `guru_mengajar`; tabel produktif (`guru_kelas`, `tugas`, `notifikasi`, dst.) belum punya policy — perlu migration baru (perubahan struktur DB wajib persetujuan user).
+- Origin CORS WebView APK release (`http://localhost` tanpa port) belum masuk whitelist `NEXT_PUBLIC_MOBILE_ORIGIN` — request dari APK release bisa gagal senyap.
+
+### 2026-09-22 — Jawaban teks pada pengumpulan tugas siswa
+
+**Fitur baru:**
+
+- Siswa dapat mengumpulkan tugas lewat **jawaban teks** (`jawaban_teks`) dan/atau file — minimal salah satu; file tidak lagi wajib (`POST /api/siswa/pengumpulan`).
+- Submit ulang bersifat full-replace: jawaban teks/file & catatan lama ditimpa; object storage lama dihapus bila tidak ada file baru.
+- Panel guru: modal pengumpulan menampilkan kolom **Jawaban** (teks jawaban + tombol unduh hanya bila ada file).
+- APK siswa: textarea "Tulis jawaban" di form kumpul, tampilan jawaban di kartu tugas, plus perbaikan bug state catatan bersama antar item.
+
+**File baru:**
+
+| File | Isi |
+|---|---|
+| `supabase/migrations/20260922_add_jawaban_teks_to_pengumpulan_tugas.sql` | Kolom `jawaban_teks TEXT` di `pengumpulan_tugas` |
