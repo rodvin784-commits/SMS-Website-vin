@@ -8,6 +8,11 @@ import {
   Video,
 } from 'lucide-react'
 
+/**
+ * teacher-nav — Daftar menu panel guru (sumber tunggal).
+ * Tambah/hapus menu di sini maka semua halaman /teacher/* ikut berubah.
+ * Urutan = urutan tampil di sidebar AppShell.
+ */
 // Navigasi panel guru (dipakai semua halaman /teacher/*)
 export const teacherNavItems = [
   { href: '/teacher/dashboard', icon: LayoutDashboard, label: 'Dashboard' },

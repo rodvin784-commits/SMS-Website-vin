@@ -1,4 +1,6 @@
 'use client'
+// LoginPage — Web (admin/guru). Kiri ilustrasi, kanan form.
+// Alur: Supabase Auth → cek profiles.role → redirect sesuai role.
 
 import { useState } from 'react'
 import Image from 'next/image'
@@ -133,13 +135,15 @@ export default function LoginPage() {
               </div>
 
               <div>
+                {/* Label + bantuan reset — sederhana, tanpa dead-link untuk awam */}
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
                     Kata Sandi
                   </label>
-                  <a href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline">
-                    Lupa Kata Sandi?
-                  </a>
+                  {/* Tidak ada fitur reset mandiri; arahkan ke admin agar tidak bingung */}
+                  <span className="text-xs font-semibold text-gray-500" title="Hubungi admin sekolah untuk reset kata sandi">
+                    Lupa? Hubungi admin
+                  </span>
                 </div>
                 <IconInput
                   type="password"

@@ -1,4 +1,7 @@
 'use client'
+// AppShell — Layout utama web (admin & guru). Sidebar + header + main.
+// Dipakai di: app/admin/* dan app/teacher/*
+// Untuk pengembang baru: tambah menu → edit lib/teacher-nav.ts
 
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
@@ -12,22 +15,23 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
+// Satu item menu sidebar
 type NavItem = {
-  href: string
-  icon: LucideIcon
-  label: string
+  href: string // rute Next.js, mis: "/admin/users"
+  icon: LucideIcon // ikon lucide-react
+  label: string // teks yang tampil
 }
 
 type UserRole = 'admin' | 'teacher' | 'siswa'
 
 interface AppShellProps {
-  role: UserRole
+  role: UserRole // tentukan label panel & ikon default
   userName: string
-  navItems: NavItem[]
-  children: React.ReactNode
+  navItems: NavItem[] // daftar menu (dari lib/teacher-nav.ts)
+  children: React.ReactNode // konten halaman
   onLogout: () => void
-  logoIcon?: React.ReactNode
-  initialColor?: string
+  logoIcon?: React.ReactNode // opsional: ikon custom
+  initialColor?: string // tidak dipakai saat ini, cadangan untuk tema
 }
 
 export function AppShell({
