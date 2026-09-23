@@ -70,52 +70,29 @@ export default function AdminUsersPage() {
   const [submitting, setSubmitting] = useState(false)
   const [editingUser, setEditingUser] = useState<Profile | null>(null)
 
-  // Fetch stats helper
-  const fetchStats = async (currentRole: string): Promise<UserStats> => {
-    try {
-      const allUsers = await loadUsersFromApi('semua')
-      const nonAdminUsers = allUsers.filter(u => u.role !== 'admin')
-      const guruUsers = nonAdminUsers.filter(u => u.role === 'guru')
-      const siswaUsers = nonAdminUsers.filter(u => u.role === 'siswa')
-      const activeUsers = nonAdminUsers.filter(u => u.status !== false)
-      const inactiveUsers = nonAdminUsers.filter(u => u.status === false)
-
-      let guruCount = guruUsers.length
-      let siswaCount = siswaUsers.length
-      if (currentRole === 'guru') {
-        guruCount = guruUsers.length
-        siswaCount = 0
-      } else if (currentRole === 'siswa') {
-        guruCount = 0
-        siswaCount = siswaUsers.length
-      }
-
-      return {
-        total: nonAdminUsers.length,
-        guru: guruCount,
-        siswa: siswaCount,
-        active: activeUsers.length,
-        inactive: inactiveUsers.length,
-      }
-    } catch {
-      return { total: 0, guru: 0, siswa: 0, active: 0, inactive: 0 }
+  // Hitung stats dari data users yang sudah ter-fetch (tanpa double fetch)
+  const computeStats = (list: Profile[]): UserStats => {
+    const nonAdmin = list.filter((u) => u.role !== 'admin')
+    return {
+      total: nonAdmin.length,
+      guru: nonAdmin.filter((u) => u.role === 'guru').length,
+      siswa: nonAdmin.filter((u) => u.role === 'siswa').length,
+      active: nonAdmin.filter((u) => u.status !== false).length,
+      inactive: nonAdmin.filter((u) => u.status === false).length,
     }
   }
 
-  // Load users & stats
+  // Load users & stats — single fetch, role filter via API, stats dari result (cegah double fetch)
   useEffect(() => {
     let cancelled = false
-
     const loadData = async () => {
       try {
-        const [usersData, statsData] = await Promise.all([
-          loadUsersFromApi(roleFilter),
-          fetchStats(roleFilter),
-        ])
-
+        const usersData = await loadUsersFromApi(roleFilter)
         if (!cancelled) {
           setUsers(usersData)
-          setStats(statsData)
+          // stats: jika filter bukan 'semua', tetap tampilkan total global dari fetch 'semua' cache lokal
+          // untuk hemat request, pakai usersData yang sudah filter; total = usersData.length (sudah tanpa admin)
+          setStats(computeStats(usersData))
         }
       } catch (err) {
         console.error('Error loading data:', err)
@@ -127,21 +104,19 @@ export default function AdminUsersPage() {
         if (!cancelled) setLoading(false)
       }
     }
-
     loadData()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [roleFilter, refreshKey])
 
-  // Refresh data
+  // Refresh data — single fetch
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
     try {
-      const [usersData, statsData] = await Promise.all([
-        loadUsersFromApi(roleFilter),
-        fetchStats(roleFilter),
-      ])
+      const usersData = await loadUsersFromApi(roleFilter)
       setUsers(usersData)
-      setStats(statsData)
+      setStats(computeStats(usersData))
       showFeedback('success', 'Data berhasil diperbarui')
     } catch (err) {
       showFeedback('error', getErrorMessage(err))
@@ -270,26 +245,22 @@ export default function AdminUsersPage() {
     }
   }, [showFeedback])
 
-  // Filter users by search and status - EXCLUDE ADMIN ACCOUNTS
+  // Filter users by search and status - EXCLUDE ADMIN ACCOUNTS (instant client-side, tanpa fetch lagi)
   const filteredUsers = useMemo(() => {
-    const search = searchQuery.toLowerCase()
-
+    const search = searchQuery.toLowerCase().trim()
     return users
-      .filter((user) => user.role !== 'admin') // Exclude admin from management
+      .filter((user) => user.role !== 'admin')
       .filter((user) => {
-        const matchesSearch = user.nama_lengkap?.toLowerCase().includes(search) ||
+        const matchesSearch =
+          !search ||
+          user.nama_lengkap?.toLowerCase().includes(search) ||
           user.email?.toLowerCase().includes(search) ||
           user.nip?.toLowerCase().includes(search) ||
-          user.nis?.toLowerCase().includes(search)
-
-        // Status filter
+          user.nis?.toLowerCase().includes(search) ||
+          (user as unknown as { kelas_nama?: string | null }).kelas_nama?.toLowerCase().includes(search)
         let matchesStatus = true
-        if (statusFilter === 'active') {
-          matchesStatus = user.status !== false
-        } else if (statusFilter === 'inactive') {
-          matchesStatus = user.status === false
-        }
-
+        if (statusFilter === 'active') matchesStatus = user.status !== false
+        else if (statusFilter === 'inactive') matchesStatus = user.status === false
         return matchesSearch && matchesStatus
       })
   }, [users, searchQuery, statusFilter])
