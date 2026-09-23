@@ -1,6 +1,6 @@
 # Dokumentasi Projek - Project Tim by Vin-Vines
 
-Tanggal: 2026-09-21 (update terbaru)
+Tanggal: 2026-09-23 (update terbaru)
 
 ---
 
@@ -95,6 +95,7 @@ project-tim-vin-vines/
 - **Debug APK:** `siswa_apk_by_vin_kuadrat/src/lib/api.ts:43` sempat dibikin detail `[URL :: detail]` + `src/lib/format.ts:6` bypass `::` untuk diagnosa, sudah direvert ke pesan ramah `Koneksi terputus` setelah fix. `npm run build` Vite & Next OK, test 20/20 & 14/14 lulus, Vercel 48 routes Ready.
 - **Password test:** `fence12@gmail.com` direset ke `12345678` (service_role) untuk verifikasi end-to-end (Supabase Auth + `/api/siswa/me` 200).
 - **Audit hardening 2026-09-23 (lanjutan):** storage 3 bucket `materi/tugas/pengumpulan` `public:false` (anon list `200 []` kosong ✓, signed URL), guru validasi `lib/guru-auth.ts:118` `isAssigned` dipakai di `app/api/teacher/tugas/route.ts:221`, `materi:148`, `video`, `nilai`, `pengumuman:52` (`getKelasDiajar`), siswa isolasi `lib/siswa-query.ts:32` semua query filter `kelasId`/`siswaId` + RLS `notifikasi_select_own` `USING (profile_id=auth.uid())`.
+- **Perf render & DB:** APK `src/App.tsx:1` `React.lazy` + `Suspense` + `vite.config.ts:6` `manualChunks (vendor-react/supabase)` + splash `2100→1400ms` `SplashScreen.tsx:13` + keep-alive tabs `display:none` + `cacheDashboard` stale-while-revalidate `lib/cache.ts:71` + prefetch idle tabs; Web `app/api/siswa/dashboard/route.ts:41` `Cache-Control private 15s` + `next.config.ts:26` `avif/webp`; DB `supabase/migrations/20260923_add_indexes_and_dashboard_rpc.sql:1` 16 index + RPC `get_dashboard_stats`; admin filter `app/admin/users/page.tsx:33` fix double fetch → single fetch + filter client instant, stats global tidak jadi 0, UI minimalis `Semua/Guru/Siswa` + status `Aktif`.
 
 ### Updates Sebelumnya (2026-09-17)
 - **Migration baru:** `20260917_make_jurusan_id_nullable_in_siswa.sql` — Fix constraint error saat membuat siswa
