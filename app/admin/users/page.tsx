@@ -70,7 +70,7 @@ export default function AdminUsersPage() {
   const [submitting, setSubmitting] = useState(false)
   const [editingUser, setEditingUser] = useState<Profile | null>(null)
 
-  // Hitung stats dari data users yang sudah ter-fetch (tanpa double fetch)
+  // Stats global (selalu dari semua user, bukan yang ter-filter) agar card TOTAL/GURU/SISWA tidak jadi 0 saat filter aktif
   const computeStats = (list: Profile[]): UserStats => {
     const nonAdmin = list.filter((u) => u.role !== 'admin')
     return {
@@ -82,17 +82,15 @@ export default function AdminUsersPage() {
     }
   }
 
-  // Load users & stats — single fetch, role filter via API, stats dari result (cegah double fetch)
+  // Load users — single fetch 'semua' lalu filter role di client agar instant & stats global benar
   useEffect(() => {
     let cancelled = false
     const loadData = async () => {
       try {
-        const usersData = await loadUsersFromApi(roleFilter)
+        const allData = await loadUsersFromApi('semua')
         if (!cancelled) {
-          setUsers(usersData)
-          // stats: jika filter bukan 'semua', tetap tampilkan total global dari fetch 'semua' cache lokal
-          // untuk hemat request, pakai usersData yang sudah filter; total = usersData.length (sudah tanpa admin)
-          setStats(computeStats(usersData))
+          setUsers(allData)
+          setStats(computeStats(allData))
         }
       } catch (err) {
         console.error('Error loading data:', err)
@@ -108,22 +106,22 @@ export default function AdminUsersPage() {
     return () => {
       cancelled = true
     }
-  }, [roleFilter, refreshKey])
+  }, [refreshKey])
 
-  // Refresh data — single fetch
+  // Refresh — fetch semua lagi
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
     try {
-      const usersData = await loadUsersFromApi(roleFilter)
-      setUsers(usersData)
-      setStats(computeStats(usersData))
+      const allData = await loadUsersFromApi('semua')
+      setUsers(allData)
+      setStats(computeStats(allData))
       showFeedback('success', 'Data berhasil diperbarui')
     } catch (err) {
       showFeedback('error', getErrorMessage(err))
     } finally {
       setRefreshing(false)
     }
-  }, [roleFilter, showFeedback])
+  }, [showFeedback])
 
   const handleCreateUser = useCallback(async (data: {
     nama_lengkap: string
@@ -245,12 +243,13 @@ export default function AdminUsersPage() {
     }
   }, [showFeedback])
 
-  // Filter users by search and status - EXCLUDE ADMIN ACCOUNTS (instant client-side, tanpa fetch lagi)
+  // Filter client-side instant (role + search + status) — tidak fetch lagi saat ganti tab filter
   const filteredUsers = useMemo(() => {
     const search = searchQuery.toLowerCase().trim()
     return users
       .filter((user) => user.role !== 'admin')
       .filter((user) => {
+        if (roleFilter !== 'semua' && user.role !== roleFilter) return false
         const matchesSearch =
           !search ||
           user.nama_lengkap?.toLowerCase().includes(search) ||
@@ -258,12 +257,12 @@ export default function AdminUsersPage() {
           user.nip?.toLowerCase().includes(search) ||
           user.nis?.toLowerCase().includes(search) ||
           (user as unknown as { kelas_nama?: string | null }).kelas_nama?.toLowerCase().includes(search)
-        let matchesStatus = true
-        if (statusFilter === 'active') matchesStatus = user.status !== false
-        else if (statusFilter === 'inactive') matchesStatus = user.status === false
-        return matchesSearch && matchesStatus
+        if (!matchesSearch) return false
+        if (statusFilter === 'active') return user.status !== false
+        if (statusFilter === 'inactive') return user.status === false
+        return true
       })
-  }, [users, searchQuery, statusFilter])
+  }, [users, searchQuery, statusFilter, roleFilter])
 
   // Count users by status for filtered results
   const filteredStats = useMemo(() => {
@@ -387,46 +386,30 @@ export default function AdminUsersPage() {
             />
           </div>
 
-          {/* Filters */}
-          <div className="flex items-center gap-3">
+          {/* Filters — minimalis profesional: role & status tidak saling reset, aktif lebih kontras */}
+          <div className="flex items-center gap-3 flex-wrap">
             {/* Role Filter */}
-            <div className="flex items-center space-x-1 bg-gray-100 rounded-xl p-1">
-              {(['guru', 'siswa', 'semua'] as const).map((role) => (
+            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+              {(['semua', 'guru', 'siswa'] as const).map((role) => (
                 <button
                   key={role}
-                  onClick={() => {
-                    setRoleFilter(role)
-                    setStatusFilter('all')
-                  }}
-                  className={`
-                    px-4 py-2 text-xs font-bold rounded-lg transition-all capitalize
-                    ${roleFilter === role
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }
-                  `}
+                  aria-pressed={roleFilter === role}
+                  onClick={() => setRoleFilter(role)}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all capitalize ${roleFilter === role ? 'bg-white text-blue-600 shadow-sm ring-1 ring-blue-100' : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'}`}
                 >
                   {role === 'semua' ? 'Semua' : role === 'guru' ? 'Guru' : 'Siswa'}
                 </button>
               ))}
             </div>
-
+            <span className="hidden sm:block h-6 w-px bg-gray-200" />
             {/* Status Filter */}
-            <div className="flex items-center space-x-1 bg-gray-100 rounded-xl p-1">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
               {(['all', 'active', 'inactive'] as const).map((status) => (
                 <button
                   key={status}
-                  onClick={() => {
-                    setStatusFilter(status)
-                    setRoleFilter(roleFilter) // Keep role filter
-                  }}
-                  className={`
-                    px-4 py-2 text-xs font-bold rounded-lg transition-all
-                    ${statusFilter === status
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }
-                  `}
+                  aria-pressed={statusFilter === status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${statusFilter === status ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-emerald-100' : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'}`}
                 >
                   {status === 'all' ? 'Semua Status' : status === 'active' ? 'Aktif' : 'Nonaktif'}
                 </button>
