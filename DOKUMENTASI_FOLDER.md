@@ -89,6 +89,12 @@ project-tim-vin-vines/
 - **Terverifikasi:** lint 0 error, `tsc --noEmit` bersih, 14/14 test lulus, endpoint baru smoke-test via dev server (guard 401/403 berfungsi).
 - **Masih terbuka (butuh keputusan):** RLS belum diterapkan pada tabel produktif (`guru_kelas`, `tugas`, `notifikasi`, dst. — migration lama hanya menyentuh tabel mati `guru_mengajar`); origin CORS untuk APK release (`http://localhost` tanpa port) belum masuk whitelist `NEXT_PUBLIC_MOBILE_ORIGIN`.
 
+### Updates Terbaru (2026-09-23) — Fix CORS APK + RLS lengkap (perkuat backend)
+- **Fix CORS APK release:** `project-tim-vin-vines/.env.local:6` `NEXT_PUBLIC_MOBILE_ORIGIN` tambah `http://localhost,https://localhost` (ditambah `capacitor://localhost` & `http://localhost:5173` yang sudah ada). Penyebab `Failed to fetch https://sms-website-one.vercel.app/api/siswa/me` di LDPlayer: origin Android Capacitor `http://localhost` tanpa port diblokir `middleware.ts:15`. Vercel env sudah diupdate Config + Redeploy Ready (Washington build 20:47). APK `fence12@gmail.com` / `12345678` kini login OK.
+- **RLS lengkap:** migration baru `supabase/migrations/20260923_enable_rls_remaining_tables.sql:1` enable RLS 14 tabel produktif yang bolong: `guru`, `siswa`, `guru_mata_pelajaran`, `guru_kelas`, `tugas`, `tugas_kelas`, `pengumpulan_tugas`, `materi`, `video_materi`, `video_kelas`, `pengumuman`, `pengumuman_kelas`, `jadwal`, `notifikasi` (khusus `notifikasi` policy `USING (profile_id=auth.uid())`). Dijalankan di SQL Editor: `Success. No rows returned`. Verifikasi via `supabase/audits/audit_rls.sql:9` — semua `rls_aktif=true`.
+- **Debug APK:** `siswa_apk_by_vin_kuadrat/src/lib/api.ts:43` sempat dibikin detail `[URL :: detail]` + `src/lib/format.ts:6` bypass `::` untuk diagnosa, sudah direvert ke pesan ramah `Koneksi terputus` setelah fix. `npm run build` Vite & Next OK, test 20/20 & 14/14 lulus, Vercel 48 routes Ready.
+- **Password test:** `fence12@gmail.com` direset ke `12345678` (service_role) untuk verifikasi end-to-end (Supabase Auth + `/api/siswa/me` 200).
+
 ### Updates Sebelumnya (2026-09-17)
 - **Migration baru:** `20260917_make_jurusan_id_nullable_in_siswa.sql` — Fix constraint error saat membuat siswa
 - **API Update:** `app/api/admin/users/route.ts` — Auto-ambil `jurusan_id` dari kelas yang dipilih
