@@ -20,6 +20,8 @@ type NavItem = {
   href: string // rute Next.js, mis: "/admin/users"
   icon: LucideIcon // ikon lucide-react
   label: string // teks yang tampil
+  description?: string // penjelasan kecil di bawah label, per kategori
+  category?: string // grup, mis: "Manajemen", "Akademik"
 }
 
 type UserRole = 'admin' | 'teacher' | 'siswa'
@@ -78,28 +80,42 @@ export function AppShell({
           </button>
         </div>
 
-        <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
-          {navItems.map((item, index) => {
-            const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
-
-            return (
-              <Link
-                key={`${item.href}-${index}`}
-                href={item.href === '#' ? '#' : item.href}
-                className={`
-                  flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-[13.5px] transition-colors
-                  ${
-                    isActive
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                  }
-                `}
-              >
-                <item.icon className="h-[18px] w-[18px]" />
-                <span>{item.label}</span>
-              </Link>
-            )
-          })}
+        <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+          {(() => {
+            // Kelompokkan by category, tanpa kategori = "Umum"
+            const groups = new Map<string, NavItem[]>()
+            for (const it of navItems) {
+              const cat = it.category ?? 'Umum'
+              if (!groups.has(cat)) groups.set(cat, [])
+              groups.get(cat)!.push(it)
+            }
+            return Array.from(groups.entries()).map(([cat, items]) => (
+              <div key={cat}>
+                {cat !== 'Umum' && <p className="px-3 mb-1.5 text-[10px] font-bold tracking-widest text-gray-400 uppercase">{cat}</p>}
+                <div className="space-y-1">
+                  {items.map((item, index) => {
+                    const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
+                    return (
+                      <Link
+                        key={`${item.href}-${index}`}
+                        href={item.href === '#' ? '#' : item.href}
+                        className={`
+                          flex items-start gap-3 px-3 py-2.5 rounded-xl transition-colors
+                          ${isActive ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}
+                        `}
+                      >
+                        <item.icon className="h-[18px] w-[18px] mt-0.5 flex-shrink-0" />
+                        <span className="min-w-0">
+                          <span className="block font-medium text-[13.5px] leading-none">{item.label}</span>
+                          {item.description && <span className={`block text-[11px] leading-tight mt-1 ${isActive ? 'text-white/70' : 'text-gray-400'}`}>{item.description}</span>}
+                        </span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            ))
+          })()}
         </nav>
 
         <div className="p-3 border-t border-gray-100">

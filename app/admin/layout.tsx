@@ -89,13 +89,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const navItems = [
-    { href: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { href: '/admin/users', icon: Users, label: 'Manajemen Pengguna' },
-    { href: '/admin/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran' },
-    { href: '/admin/jurusan', icon: Building2, label: 'Data Jurusan' },
-    { href: '/admin/kelas', icon: GraduationCap, label: 'Data Kelas' },
-    { href: '/admin/jadwal', icon: Calendar, label: 'Jadwal Pelajaran' },
-    { href: '/admin/presensi', icon: UserCheck, label: 'Rekap Presensi' },
+    { href: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', description: 'Ringkasan & statistik sekolah', category: 'Utama' },
+    { href: '/admin/users', icon: Users, label: 'Manajemen Pengguna', description: 'Kelola akun guru & siswa', category: 'Manajemen' },
+    { href: '/admin/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran', description: 'Mapel & penugasan guru', category: 'Akademik' },
+    { href: '/admin/jurusan', icon: Building2, label: 'Data Jurusan', description: 'Jurusan & program keahlian', category: 'Akademik' },
+    { href: '/admin/kelas', icon: GraduationCap, label: 'Data Kelas', description: 'Kelas X–XII & wali kelas', category: 'Akademik' },
+    { href: '/admin/jadwal', icon: Calendar, label: 'Jadwal Pelajaran', description: 'Jadwal per kelas per hari', category: 'Akademik' },
+    { href: '/admin/presensi', icon: UserCheck, label: 'Rekap Presensi', description: 'Rekap kehadiran bulanan', category: 'Akademik' },
   ]
 
   return (
