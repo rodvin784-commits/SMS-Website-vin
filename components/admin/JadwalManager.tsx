@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { Input } from '@/components/ui/Input'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
-import { useFeedback } from '@/hooks/useFeedback'
+import { useAdminMutate } from '@/hooks/useAdminMutate'
 
 interface KelasOption {
   id: string
@@ -52,7 +52,6 @@ export function JadwalManager() {
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
     guru_kelas_id: '',
     hari: '',
@@ -61,7 +60,7 @@ export function JadwalManager() {
     ruangan: '',
   })
 
-  const { feedback, showFeedback, setFeedback } = useFeedback()
+  const { feedback, showFeedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/jadwal')
 
   const fetchOptions = useCallback(async () => {
     try {
@@ -158,54 +157,28 @@ export function JadwalManager() {
       return
     }
 
-    setSubmitting(true)
     try {
-      const res = await fetch('/api/admin/jadwal', {
-        method: editingId ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...(editingId ? { id: editingId } : {}),
-          guru_kelas_id: form.guru_kelas_id || undefined,
-          hari: form.hari,
-          jam_mulai: form.jam_mulai,
-          jam_selesai: form.jam_selesai,
-          ruangan: form.ruangan?.trim() || null,
-        }),
+      await mutate(editingId ? 'PUT' : 'POST', {
+        ...(editingId ? { id: editingId } : {}),
+        guru_kelas_id: form.guru_kelas_id || undefined,
+        hari: form.hari,
+        jam_mulai: form.jam_mulai,
+        jam_selesai: form.jam_selesai,
+        ruangan: form.ruangan?.trim() || null,
       })
-      const data = await res.json().catch(() => null)
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Gagal menyimpan jadwal')
-      }
-
       setIsModalOpen(false)
       setEditingId(null)
       resetForm()
-      showFeedback('success', data?.message || 'Jadwal berhasil disimpan')
       fetchJadwal(selectedKelasId)
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Gagal menyimpan jadwal')
-    } finally {
-      setSubmitting(false)
-    }
+    } catch {}
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm('Hapus jadwal ini? Tindakan ini tidak dapat dibatalkan.')) return
-
     try {
-      const res = await fetch(`/api/admin/jadwal?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
-      const data = await res.json().catch(() => null)
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Gagal menghapus jadwal')
-      }
-
-      showFeedback('success', data?.message || 'Jadwal berhasil dihapus')
+      await mutate('DELETE', undefined, `?id=${encodeURIComponent(id)}`)
       fetchJadwal(selectedKelasId)
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Gagal menghapus jadwal')
-    }
+    } catch {}
   }
 
   const selectedKelas = kelasOptions.find((k) => k.id === selectedKelasId)
