@@ -49,6 +49,17 @@ export function PresensiManager() {
     } finally{ setSaving(false)}
   }
 
+  const exportCSV = () => {
+    if(rows.length===0) return
+    const header=['NIS','Nama','Status','Keterangan','Tanggal']
+    const lines=[header.join(','), ...rows.map(r=> {
+      const d=draft[r.siswa_id] ?? {status: r.presensi?.status ?? 'hadir', ket: r.presensi?.keterangan ?? ''}
+      return [r.nis,`"${r.nama_lengkap.replace(/"/g,'""')}"`,d.status,`"${(d.ket||'').replace(/"/g,'""')}"`,tanggal].join(',')
+    })]
+    const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'})
+    const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`presensi-${kelas}-${tanggal}.csv`; a.click(); URL.revokeObjectURL(url)
+  }
+
   if(loading) return <div className="bg-white rounded-2xl p-10 text-center text-sm text-gray-400">Memuat...</div>
   if(assignments.length===0) return <div className="bg-white rounded-2xl p-10 text-center text-sm">Belum ada penugasan</div>
 
@@ -83,7 +94,11 @@ export function PresensiManager() {
           </tbody>
         </table>
       </div>
-      <button onClick={simpan} disabled={saving || rows.length===0} className="px-6 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold disabled:opacity-50">{saving?'Menyimpan...':'Simpan Presensi'}</button>
+      <div className="flex gap-3">
+        <button onClick={simpan} disabled={saving || rows.length===0} className="px-6 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold disabled:opacity-50">{saving?'Menyimpan...':'Simpan Presensi'}</button>
+        <button onClick={exportCSV} disabled={rows.length===0} className="px-6 py-3 rounded-xl bg-white border text-sm font-bold disabled:opacity-50">Export CSV</button>
+      </div>
+      {rows.length>0 && <p className="text-xs text-gray-500">{rows.filter(r=> (draft[r.siswa_id]?.status ?? r.presensi?.status) === 'hadir').length} hadir · {rows.filter(r=> (draft[r.siswa_id]?.status) === 'alpha').length} alpha</p>}
     </div>
   )
 }
