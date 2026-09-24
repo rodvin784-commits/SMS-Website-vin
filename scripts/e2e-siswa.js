@@ -230,10 +230,10 @@ async function main() {
     const upJson = await up.json().catch(() => null)
     check('POST /pengumpulan (multipart file) -> 201', up.status === 201, `status=${up.status} ${JSON.stringify(upJson)?.slice(0, 120)}`)
 
-    // Status tugas kini harus terkumpul.
+    // Status tugas kini harus terkumpul/terlambat (deadline bisa lewat).
     const tugasSetelah = await api('/api/siswa/tugas', { token })
     const baris = (tugasSetelah.json?.tugas ?? []).find((t) => t.id === tugasBisaKumpul.id)
-    check('Status tugas menjadi terkumpul', baris?.pengumpulan?.status === 'dikumpulkan', JSON.stringify(baris?.pengumpulan))
+    check('Status tugas menjadi terkumpul', ['dikumpulkan','terlambat'].includes(baris?.pengumpulan?.status), JSON.stringify(baris?.pengumpulan))
 
     // Unduh jawaban sendiri.
     if (baris?.pengumpulan?.id) {
@@ -256,10 +256,12 @@ async function main() {
     const tugasSetelahTeks = await api('/api/siswa/tugas', { token })
     const barisTeks = (tugasSetelahTeks.json?.tugas ?? []).find((t) => t.id === tugasBisaKumpul.id)
     check('jawaban_teks round-trip via GET /tugas', barisTeks?.pengumpulan?.jawaban_teks === 'Uji e2e jawaban teks dari siswa', JSON.stringify(barisTeks?.pengumpulan))
-    check('Submit teks menimpa file lama (nama_file null)', barisTeks?.pengumpulan?.nama_file == null, JSON.stringify(barisTeks?.pengumpulan))
+    // PATCH: submit teks saja harus pertahankan file lama (anti data loss) — bukan hapus
+    check('Submit teks pertahankan file lama (nama_file tetap)', barisTeks?.pengumpulan?.nama_file === 'jawaban-e2e.txt', JSON.stringify(barisTeks?.pengumpulan))
 
     const dlTanpaFile = await api('/api/siswa/pengumpulan/download', { method: 'POST', token, body: { pengumpulan_id: barisTeks.pengumpulan.id } })
-    check('POST /pengumpulan/download tanpa file -> 400', dlTanpaFile.status === 400, `status=${dlTanpaFile.status}`)
+    // Karena PATCH pertahankan file, download tetap harus 200 (file masih ada)
+    check('POST /pengumpulan/download setelah PATCH teks -> 200 (file dipertahankan)', dlTanpaFile.status === 200, `status=${dlTanpaFile.status}`)
 
     // Notifikasi pengumpulan masuk.
     const notif = await api('/api/siswa/notifikasi', { token })
