@@ -58,7 +58,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
   }, [onDataChanged])
 
   // Feedback + mutate DRY untuk CRUD utama (penugasan tetap manual karena endpoint berbeda)
-  const { feedback, showFeedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/mata-pelajaran', refreshData)
+  const { feedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/mata-pelajaran', refreshData)
 
   // Load data on mount, saat refresh diminta (skeleton hanya tampil di load awal)
   useEffect(() => {
@@ -256,6 +256,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       if (statusFilter === 'inactive') matchesStatus = item.status === false
       return matchesSearch && matchesStatus
     })
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setCurrentPage(1) }, [debouncedSearch, statusFilter])
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize))
   const pagedData = useMemo(() => {

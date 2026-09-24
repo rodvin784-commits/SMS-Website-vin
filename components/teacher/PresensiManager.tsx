@@ -36,6 +36,7 @@ export function PresensiManager() {
       else setMsg({type:'error', text: d.error})
     } finally{ setLoading(false)}
   }
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{ if(mapel&&kelas&&tanggal) void muat() }, [mapel,kelas,tanggal])
 
   const simpan = async () => {

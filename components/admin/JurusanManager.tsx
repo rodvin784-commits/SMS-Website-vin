@@ -45,7 +45,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
   }, [onDataChanged])
 
   // Feedback + mutate DRY (ganti 3 handler duplikat)
-  const { feedback, showFeedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/jurusan', refreshData)
+  const { feedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/jurusan', refreshData)
 
   // Load data on mount, saat filter berubah, atau saat refresh diminta
   useEffect(() => {
@@ -81,6 +81,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
     const q = debouncedSearch.toLowerCase()
     return item.kode.toLowerCase().includes(q) || item.nama.toLowerCase().includes(q)
   })
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setCurrentPage(1) }, [debouncedSearch, statusFilter])
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize))
   const pagedData = useMemo(() => {

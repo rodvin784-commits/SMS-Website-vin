@@ -77,7 +77,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
     if (onDataChanged) onDataChanged()
   }, [onDataChanged])
 
-  const { feedback, showFeedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/kelas', refreshData)
+  const { feedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/kelas', refreshData)
 
   // Load data on mount, saat filter berubah, atau saat refresh diminta
   useEffect(() => {
@@ -147,6 +147,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
       (item.jurusan?.kode.toLowerCase().includes(q) ?? false)
     )
   })
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setCurrentPage(1) }, [debouncedSearch, statusFilter, tingkatFilter, jurusanFilter])
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize))
   const pagedData = useMemo(() => {

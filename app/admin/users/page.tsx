@@ -269,6 +269,7 @@ export default function AdminUsersPage() {
   }, [filteredUsers])
 
   // Reset page saat filter/search berubah
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setCurrentPage(1) }, [debouncedSearch, roleFilter, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize))
