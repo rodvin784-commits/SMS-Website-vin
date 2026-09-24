@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
 import { useFeedback } from '@/hooks/useFeedback'
+import { useAdminMutate } from '@/hooks/useAdminMutate'
 
 interface GuruPengampu {
   guru_id: string
@@ -48,10 +49,6 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
   const [detailMode, setDetailMode] = useState<'view' | 'manage'>('view')
   const [detailItem, setDetailItem] = useState<MataPelajaranData | null>(null)
   const [editingItem, setEditingItem] = useState<MataPelajaranData | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  // Feedback level halaman (auto-dismiss)
-  const { feedback, showFeedback, setFeedback } = useFeedback()
 
   // Refresh trigger: naikkan angka untuk memuat ulang data (dipakai setelah mutasi)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -59,6 +56,9 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
     setRefreshKey((k) => k + 1)
     if (onDataChanged) onDataChanged()
   }, [onDataChanged])
+
+  // Feedback + mutate DRY untuk CRUD utama (penugasan tetap manual karena endpoint berbeda)
+  const { feedback, showFeedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/mata-pelajaran', refreshData)
 
   // Load data on mount, saat refresh diminta (skeleton hanya tampil di load awal)
   useEffect(() => {
@@ -290,97 +290,37 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
     fetchPenugasan(item.id)
   }, [fetchPenugasan, setDetailFeedback])
 
-  // Create handler
+  // Create handler — DRY via mutate (tetap buka detail manage setelah sukses)
   const handleCreate = useCallback(async (formData: { kode: string; nama: string; deskripsi?: string }) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/mata-pelajaran', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menambahkan mata pelajaran')
-      }
-
-      showFeedback('success', 'Mata pelajaran berhasil ditambahkan!')
+      const result = await mutate('POST', formData) as MataPelajaranData & { id: string }
       setIsCreateModalOpen(false)
-      await refreshData()
-
-      // Buka detail view dengan data lengkap
       setTimeout(() => {
         openDetail(result as MataPelajaranData, 'manage')
       }, 300)
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, openDetail, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate, openDetail])
 
   // Update handler
   const handleUpdate = useCallback(async (id: string, formData: { kode?: string; nama?: string; deskripsi?: string | null; status?: boolean }) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/mata-pelajaran', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...formData }),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal memperbarui mata pelajaran')
-      }
-
-      showFeedback('success', 'Mata pelajaran berhasil diperbarui!')
+      await mutate('PUT', { id, ...formData })
       setIsEditModalOpen(false)
       setEditingItem(null)
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate])
 
   // Nonaktifkan / Hapus handler
   const handleNonaktifkan = useCallback(async (item: MataPelajaranData) => {
     if (item.status === true) {
-      // Konfirmasi nonaktifkan
       if (!confirm(`Apakah Anda yakin ingin menonaktifkan "${item.nama}"?\n\nMata pelajaran yang dinonaktifkan tidak akan muncul di pilihan penugasan guru, tetapi penugasan yang sudah ada tetap tersimpan.`)) return
     } else {
-      // Konfirmasi hapus permanen
       if (!confirm(`Hapus permanen "${item.nama}"?\n\nTindakan ini tidak dapat dibatalkan.`)) return
     }
-
-    setFeedback(null)
-
     try {
-      const res = await fetch(`/api/admin/mata-pelajaran?id=${item.id}`, {
-        method: 'DELETE',
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal memproses mata pelajaran')
-      }
-
-      showFeedback('success', result.message || 'Berhasil diproses')
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    }
-  }, [refreshData, showFeedback, setFeedback])
+      await mutate('DELETE', undefined, `?id=${item.id}`)
+    } catch {}
+  }, [mutate])
 
   // Format tanggal
   const formatDate = (dateStr: string) => {
