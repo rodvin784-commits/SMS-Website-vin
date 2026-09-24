@@ -129,28 +129,18 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
     }
   }, [])
 
-  // Filter data
-  const filteredData = data
-    .filter((item) => {
-      const jurusanMatch = searchQuery === '' || (item.jurusan && item.jurusan.nama.toLowerCase().includes(searchQuery.toLowerCase()))
-      const kelasMatch =
-        item.nama_kelas.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.tahun_ajaran.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.tingkat.toString().includes(searchQuery)
-      const matchesSearch = jurusanMatch || kelasMatch
-      let matchesStatus = true
-      if (statusFilter === 'active') matchesStatus = item.status === true
-      if (statusFilter === 'inactive') matchesStatus = item.status === false
-      let matchesTingkat = true
-      if (tingkatFilter !== 'all' && tingkatFilter !== '') {
-        matchesTingkat = item.tingkat.toString() === tingkatFilter
-      }
-      let matchesJurusan = true
-      if (jurusanFilter !== 'all') {
-        matchesJurusan = item.jurusan_id === jurusanFilter
-      }
-      return matchesSearch && matchesStatus && matchesTingkat && matchesJurusan
-    })
+  // Filter data: server sudah filter status/tingkat/jurusan, client hanya search teks (hindari double filter)
+  const filteredData = data.filter((item) => {
+    if (searchQuery === '') return true
+    const q = searchQuery.toLowerCase()
+    return (
+      item.nama_kelas.toLowerCase().includes(q) ||
+      item.tahun_ajaran.toLowerCase().includes(q) ||
+      item.tingkat.toString().includes(q) ||
+      (item.jurusan?.nama.toLowerCase().includes(q) ?? false) ||
+      (item.jurusan?.kode.toLowerCase().includes(q) ?? false)
+    )
+  })
 
   // Create handler
   const handleCreate = useCallback(async (formData: KelasFormData) => {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-server'
-import { guruAuth, isAssigned } from '@/lib/guru-auth'
+import { areAllAssigned, guruAuth } from '@/lib/guru-auth'
 import { kirimNotifikasiKeKelas } from '@/lib/notifikasi'
 
 // Tugas (DATABASE_CONTEXT.md #10-11):
@@ -122,6 +122,7 @@ export async function GET() {
       .select(TUGAS_SELECT)
       .eq('guru_id', auth.guruId)
       .order('created_at', { ascending: false })
+      .limit(100)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
@@ -216,14 +217,12 @@ export async function POST(request: NextRequest) {
     if (kelasIds.length === 0) return NextResponse.json({ error: 'Pilih minimal satu kelas tujuan.' }, { status: 400 })
     if (!judul) return NextResponse.json({ error: 'Judul tugas wajib diisi.' }, { status: 400 })
 
-    // Guru hanya boleh mengirim tugas ke kelas yang diajar untuk mapel ini
-    for (const kelasId of kelasIds) {
-      if (!(await isAssigned(auth.guruId, mapelId, kelasId))) {
-        return NextResponse.json(
-          { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
-          { status: 403 }
-        )
-      }
+    // Guru hanya boleh mengirim tugas ke kelas yang diajar untuk mapel ini (batch 1 query)
+    if (!(await areAllAssigned(auth.guruId, mapelId, kelasIds))) {
+      return NextResponse.json(
+        { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
+        { status: 403 }
+      )
     }
 
     // Upload lampiran ke bucket `tugas` (private) — simpan path di kolom lampiran_url
@@ -232,6 +231,15 @@ export async function POST(request: NextRequest) {
       if (file.size > 15 * 1024 * 1024) {
         return NextResponse.json({ error: 'Lampiran maksimal 15MB.' }, { status: 400 })
       }
+      // Block executable / HTML yang bisa XSS jika bucket pernah public
+      const blockedExt = ['html', 'htm', 'svg', 'js', 'exe', 'sh', 'bat']
+      const extLower = (file.name.split('.').pop() ?? '').toLowerCase()
+      if (blockedExt.includes(extLower) || file.type.toLowerCase().includes('html')) {
+        return NextResponse.json({ error: 'Tipe file lampiran tidak diizinkan (html/svg/exe diblokir).' }, { status: 400 })
+      }
+      // Sanitasi nama untuk header download: hilangkan karakter kontrol
+      const safeName = file.name.replace(/[\r\n"]/g, '').slice(0, 200) || 'lampiran'
+      void safeName
       const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
       const path = `${auth.guruId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
       const { error: upErr } = await getSupabaseAdmin()
@@ -244,25 +252,27 @@ export async function POST(request: NextRequest) {
       lampiranPath = path
     }
 
-    // Upload foto ke bucket `tugas` (private) — simpan array path di foto_urls
+    // Upload foto ke bucket `tugas` (private) — parallel untuk performa
     let fotoPaths: string[] | null = null
     if (fotoFiles.length > 0) {
-      fotoPaths = []
-      for (const foto of fotoFiles) {
-        const ext = foto.name.includes('.') ? foto.name.split('.').pop() : 'jpg'
-        const path = `${auth.guruId}/foto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-        const { error: upErr } = await getSupabaseAdmin()
-          .storage
-          .from('tugas')
-          .upload(path, foto, { upsert: false, contentType: foto.type || 'image/jpeg' })
-        if (upErr) {
-          // rollback already uploaded fotos + lampiran
-          if (fotoPaths.length > 0) await getSupabaseAdmin().storage.from('tugas').remove(fotoPaths)
-          if (lampiranPath) await getSupabaseAdmin().storage.from('tugas').remove([lampiranPath])
-          return NextResponse.json({ error: `Gagal upload foto: ${upErr.message}` }, { status: 400 })
-        }
-        fotoPaths.push(path)
+      const uploads = await Promise.all(
+        fotoFiles.map(async (foto) => {
+          const ext = foto.name.includes('.') ? foto.name.split('.').pop() : 'jpg'
+          const path = `${auth.guruId}/foto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+          const { error: upErr } = await getSupabaseAdmin()
+            .storage.from('tugas')
+            .upload(path, foto, { upsert: false, contentType: foto.type || 'image/jpeg' })
+          return { path, upErr, name: foto.name }
+        })
+      )
+      const failed = uploads.find((u) => u.upErr)
+      if (failed) {
+        const successPaths = uploads.filter((u) => !u.upErr).map((u) => u.path)
+        if (successPaths.length > 0) await getSupabaseAdmin().storage.from('tugas').remove(successPaths)
+        if (lampiranPath) await getSupabaseAdmin().storage.from('tugas').remove([lampiranPath])
+        return NextResponse.json({ error: `Gagal upload foto "${failed.name}": ${failed.upErr!.message}` }, { status: 400 })
       }
+      fotoPaths = uploads.map((u) => u.path)
     }
 
     const { data: created, error: insErr } = await getSupabaseAdmin()
@@ -273,7 +283,7 @@ export async function POST(request: NextRequest) {
         judul,
         deskripsi,
         tanggal_mulai: tanggalMulai,
-        deadline: deadline ?? new Date().toISOString(),
+        deadline: deadline ?? null,
         lampiran_url: lampiranPath,
         foto_urls: fotoPaths,
         status,
@@ -438,6 +448,10 @@ export async function PUT(request: NextRequest) {
     // Upload lampiran baru jika ada
     if (lampiranFile) {
       if (lampiranFile.size > 15 * 1024 * 1024) return NextResponse.json({ error: 'Lampiran maksimal 15MB.' }, { status: 400 })
+      const blockedExt2 = ['html', 'htm', 'svg', 'js', 'exe', 'sh', 'bat']
+      if (blockedExt2.includes((lampiranFile.name.split('.').pop() ?? '').toLowerCase()) || lampiranFile.type.toLowerCase().includes('html')) {
+        return NextResponse.json({ error: 'Tipe file lampiran tidak diizinkan.' }, { status: 400 })
+      }
       const ext = lampiranFile.name.includes('.') ? lampiranFile.name.split('.').pop() : 'bin'
       const path = `${auth.guruId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
       const { error: upErr } = await getSupabaseAdmin().storage.from('tugas').upload(path, lampiranFile, { upsert: false })
@@ -446,19 +460,23 @@ export async function PUT(request: NextRequest) {
       updates.lampiran_url = path
     }
 
-    // Upload foto baru jika ada
+    // Upload foto baru jika ada (parallel)
     if (fotoFiles.length > 0) {
-      const newFotoPaths: string[] = []
-      for (const foto of fotoFiles) {
-        const ext = foto.name.includes('.') ? foto.name.split('.').pop() : 'jpg'
-        const path = `${auth.guruId}/foto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-        const { error: upErr } = await getSupabaseAdmin().storage.from('tugas').upload(path, foto, { upsert: false, contentType: foto.type || 'image/jpeg' })
-        if (upErr) {
-          if (newFotoPaths.length > 0) await getSupabaseAdmin().storage.from('tugas').remove(newFotoPaths)
-          return NextResponse.json({ error: `Gagal upload foto: ${upErr.message}` }, { status: 400 })
-        }
-        newFotoPaths.push(path)
+      const results = await Promise.all(
+        fotoFiles.map(async (foto) => {
+          const ext = foto.name.includes('.') ? foto.name.split('.').pop() : 'jpg'
+          const path = `${auth.guruId}/foto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+          const { error: upErr } = await getSupabaseAdmin().storage.from('tugas').upload(path, foto, { upsert: false, contentType: foto.type || 'image/jpeg' })
+          return { path, upErr, name: foto.name }
+        })
+      )
+      const failed = results.find((r) => r.upErr)
+      if (failed) {
+        const okPaths = results.filter((r) => !r.upErr).map((r) => r.path)
+        if (okPaths.length > 0) await getSupabaseAdmin().storage.from('tugas').remove(okPaths)
+        return NextResponse.json({ error: `Gagal upload foto: ${failed.upErr!.message}` }, { status: 400 })
       }
+      const newFotoPaths: string[] = results.map((r) => r.path)
       // Jika hapus_foto true, ganti; jika tidak, append ke existing (max 5)
       // updates.foto_urls sudah null jika hapus_foto, otherwise use existing
       const base = (updates.foto_urls === null) ? [] : (existingRow.foto_urls ?? [])
@@ -479,13 +497,11 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'mata_pelajaran_id wajib disertakan saat mengubah kelas tujuan.' }, { status: 400 })
       }
       const kelasIds: string[] = (body.kelas_ids as unknown[]).map((k) => String(k))
-      for (const kelasId of kelasIds) {
-        if (!(await isAssigned(auth.guruId, mapelId, kelasId))) {
-          return NextResponse.json(
-            { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
-            { status: 403 }
-          )
-        }
+      if (!(await areAllAssigned(auth.guruId, mapelId, kelasIds))) {
+        return NextResponse.json(
+          { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
+          { status: 403 }
+        )
       }
       const { error: delErr } = await getSupabaseAdmin()
         .from('tugas_kelas')

@@ -13,11 +13,11 @@ export function denyResponse(status = 403) {
   )
 }
 
-// Bungkus error tak terduga: log dengan konteks, balikan pesan aman.
+// Bungkus error tak terduga: log dengan konteks, balikan pesan aman (jangan bocorkan err.message ke client).
 export function serverError(err: unknown, context: string) {
   console.error(context, err)
   return NextResponse.json(
-    { error: err instanceof Error ? err.message : 'Terjadi kesalahan server' },
+    { error: 'Terjadi kesalahan server. Silakan coba lagi.' },
     { status: 500 }
   )
 }

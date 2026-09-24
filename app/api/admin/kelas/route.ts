@@ -58,10 +58,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (tingkat) {
-      const tingkatNum = parseInt(tingkat, 10)
-      if (!isNaN(tingkatNum)) {
-        query = query.eq('tingkat', tingkatNum)
+      // Validasi ketat: hanya 10,11,12 (tolak "10abc")
+      if (!/^(10|11|12)$/.test(tingkat.trim())) {
+        return NextResponse.json({ error: 'Filter tingkat tidak valid (10-12)' }, { status: 400 })
       }
+      query = query.eq('tingkat', parseInt(tingkat, 10))
     }
 
     if (jurusanId) {
@@ -146,15 +147,16 @@ export async function POST(request: Request) {
       }
     }
 
-    // Cek kombinasi duplikat (nama_kelas + tingkat + tahun_ajaran + jurusan_id)
-    const { data: existing, error: checkError } = await supabaseAdmin
+    // Cek kombinasi duplikat (nama_kelas + tingkat + tahun_ajaran + jurusan_id) — pakai is() untuk null
+    let dupQuery = supabaseAdmin
       .from('kelas')
       .select('id')
       .eq('nama_kelas', nama_kelas.trim())
       .eq('tingkat', parseInt(tingkat, 10))
       .eq('tahun_ajaran', tahun_ajaran.trim())
-      .eq('jurusan_id', jurusan_id || null)
-      .maybeSingle()
+    if (jurusan_id) dupQuery = dupQuery.eq('jurusan_id', jurusan_id)
+    else dupQuery = dupQuery.is('jurusan_id', null)
+    const { data: existing, error: checkError } = await dupQuery.maybeSingle()
 
     if (checkError) {
       return NextResponse.json({ error: checkError.message }, { status: 400 })
@@ -203,60 +205,55 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'ID kelas wajib diisi' }, { status: 400 })
     }
 
-    const updates: { nama_kelas?: string; tingkat?: number; tahun_ajaran?: string; jurusan_id?: string | null; status?: boolean } = {}
+    // Ambil data existing untuk validasi duplikat yang akurat (hindari tingkat ?? 0 bug)
+    const { data: current, error: curErr } = await supabaseAdmin
+      .from('kelas')
+      .select('nama_kelas, tingkat, tahun_ajaran, jurusan_id')
+      .eq('id', id)
+      .maybeSingle()
+    if (curErr) return NextResponse.json({ error: curErr.message }, { status: 400 })
+    if (!current) return NextResponse.json({ error: 'Kelas tidak ditemukan' }, { status: 404 })
 
-    if (nama_kelas !== undefined && nama_kelas.trim() !== '') {
-      // Cek duplikat (kecuali yang sedang diupdate)
-      const { data: existing, error: checkError } = await supabaseAdmin
+    const cur = current as { nama_kelas: string; tingkat: number; tahun_ajaran: string; jurusan_id: string | null }
+    const finalNama = nama_kelas !== undefined && nama_kelas.trim() !== '' ? nama_kelas.trim() : cur.nama_kelas
+    const finalTingkat = tingkat !== undefined && !isNaN(Number(tingkat)) && Number(tingkat) >= 10 && Number(tingkat) <= 12 ? parseInt(String(tingkat), 10) : cur.tingkat
+    const finalTahun = tahun_ajaran !== undefined && String(tahun_ajaran).trim() !== '' ? String(tahun_ajaran).trim() : cur.tahun_ajaran
+    const finalJurusan = jurusan_id !== undefined ? (jurusan_id || null) : cur.jurusan_id
+
+    // Validasi jurusan jika diubah
+    if (jurusan_id !== undefined && jurusan_id) {
+      const { data: jurusan, error: jurusanError } = await supabaseAdmin
+        .from('jurusan')
+        .select('id')
+        .eq('id', jurusan_id)
+        .eq('status', true)
+        .maybeSingle()
+      if (jurusanError) return NextResponse.json({ error: jurusanError.message }, { status: 400 })
+      if (!jurusan) return NextResponse.json({ error: 'Jurusan tidak ditemukan atau tidak aktif' }, { status: 400 })
+    }
+
+    // Cek duplikat hanya jika ada perubahan kombinasi
+    const changed = finalNama !== cur.nama_kelas || finalTingkat !== cur.tingkat || finalTahun !== cur.tahun_ajaran || finalJurusan !== cur.jurusan_id
+    if (changed) {
+      let dupQ = supabaseAdmin
         .from('kelas')
         .select('id')
-        .eq('nama_kelas', nama_kelas.trim())
-        .eq('tingkat', tingkat ?? 0)
-        .eq('tahun_ajaran', tahun_ajaran ?? '')
-        .eq('jurusan_id', jurusan_id ?? null)
+        .eq('nama_kelas', finalNama)
+        .eq('tingkat', finalTingkat)
+        .eq('tahun_ajaran', finalTahun)
         .neq('id', id)
-        .maybeSingle()
-
-      if (checkError) {
-        return NextResponse.json({ error: checkError.message }, { status: 400 })
-      }
-
-      if (existing) {
-        return NextResponse.json({ error: 'Kombinasi kelas sudah digunakan' }, { status: 400 })
-      }
-
-      updates.nama_kelas = nama_kelas.trim()
+      if (finalJurusan) dupQ = dupQ.eq('jurusan_id', finalJurusan)
+      else dupQ = dupQ.is('jurusan_id', null)
+      const { data: dup, error: dupErr } = await dupQ.maybeSingle()
+      if (dupErr) return NextResponse.json({ error: dupErr.message }, { status: 400 })
+      if (dup) return NextResponse.json({ error: 'Kombinasi kelas sudah digunakan' }, { status: 400 })
     }
 
-    if (tingkat !== undefined && !isNaN(tingkat) && tingkat >= 10 && tingkat <= 12) {
-      updates.tingkat = parseInt(tingkat, 10)
-    }
-
-    if (tahun_ajaran !== undefined && tahun_ajaran.trim() !== '') {
-      updates.tahun_ajaran = tahun_ajaran.trim()
-    }
-
-    if (jurusan_id !== undefined) {
-      // Cek jurusan_id ada (jika dikirim dan bukan null)
-      if (jurusan_id) {
-        const { data: jurusan, error: jurusanError } = await supabaseAdmin
-          .from('jurusan')
-          .select('id')
-          .eq('id', jurusan_id)
-          .eq('status', true)
-          .maybeSingle()
-
-        if (jurusanError) {
-          return NextResponse.json({ error: jurusanError.message }, { status: 400 })
-        }
-
-        if (!jurusan) {
-          return NextResponse.json({ error: 'Jurusan tidak ditemukan atau tidak aktif' }, { status: 400 })
-        }
-      }
-
-      updates.jurusan_id = jurusan_id || null
-    }
+    const updates: { nama_kelas?: string; tingkat?: number; tahun_ajaran?: string; jurusan_id?: string | null; status?: boolean } = {}
+    if (nama_kelas !== undefined && nama_kelas.trim() !== '') updates.nama_kelas = finalNama
+    if (tingkat !== undefined && !isNaN(Number(tingkat)) && Number(tingkat) >= 10 && Number(tingkat) <= 12) updates.tingkat = finalTingkat
+    if (tahun_ajaran !== undefined && String(tahun_ajaran).trim() !== '') updates.tahun_ajaran = finalTahun
+    if (jurusan_id !== undefined) updates.jurusan_id = finalJurusan
 
     if (status !== undefined) {
       updates.status = status
@@ -295,20 +292,28 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'ID kelas wajib diisi' }, { status: 400 })
     }
 
-    // Cek apakah sedang dipakai di penugasan guru
-    const { data: usedIn, error: checkError } = await supabaseAdmin
-      .from('guru_kelas')
-      .select('id')
-      .eq('kelas_id', id)
-      .maybeSingle()
+    // Cek apakah sedang dipakai di penugasan guru atau siswa
+    const [{ data: usedIn, error: checkError }, { data: usedBySiswa, error: siswaErr }] = await Promise.all([
+      supabaseAdmin.from('guru_kelas').select('id').eq('kelas_id', id).maybeSingle(),
+      supabaseAdmin.from('siswa').select('id').eq('kelas_id', id).limit(1).maybeSingle(),
+    ])
 
     if (checkError) {
       return NextResponse.json({ error: checkError.message }, { status: 400 })
+    }
+    if (siswaErr) {
+      return NextResponse.json({ error: siswaErr.message }, { status: 400 })
     }
 
     if (usedIn) {
       return NextResponse.json(
         { error: 'Kelas sedang digunakan di penugasan guru. Hapus penugasan terlebih dahulu.' },
+        { status: 400 }
+      )
+    }
+    if (usedBySiswa) {
+      return NextResponse.json(
+        { error: 'Kelas masih memiliki siswa. Pindahkan siswa terlebih dahulu.' },
         { status: 400 }
       )
     }

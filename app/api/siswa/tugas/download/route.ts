@@ -52,8 +52,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Tugas belum dipublikasikan.' }, { status: 400 })
     }
 
-    // Jika minta foto spesifik
+    // Jika minta foto spesifik — validasi integer >=0
     if (fotoIndex !== null && !Number.isNaN(fotoIndex)) {
+      if (!Number.isInteger(fotoIndex) || fotoIndex < 0) {
+        return NextResponse.json({ error: 'foto_index tidak valid.' }, { status: 400 })
+      }
       if (!t.foto_urls || !t.foto_urls[fotoIndex]) {
         return NextResponse.json({ error: 'Foto tidak ditemukan.' }, { status: 404 })
       }
@@ -63,14 +66,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ url: signedFoto.signedUrl, foto_index: fotoIndex, foto_urls: t.foto_urls })
     }
 
-    // Jika ada foto, sertakan signed foto urls juga
+    // Jika ada foto, sertakan signed foto urls juga (parallel)
     let fotoSigned: string[] | null = null
     if (t.foto_urls && t.foto_urls.length > 0) {
-      fotoSigned = []
-      for (const fp of t.foto_urls) {
-        const { data: s } = await getSupabaseAdmin().storage.from('tugas').createSignedUrl(fp, 600)
-        if (s) fotoSigned.push(s.signedUrl)
-      }
+      const results = await Promise.all(
+        t.foto_urls.map((fp) => getSupabaseAdmin().storage.from('tugas').createSignedUrl(fp, 600))
+      )
+      fotoSigned = results.filter((r) => r.data?.signedUrl).map((r) => r.data!.signedUrl)
     }
 
     if (!t.lampiran_url) {

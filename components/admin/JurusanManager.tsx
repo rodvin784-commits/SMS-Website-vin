@@ -72,17 +72,12 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
     return () => { cancelled = true }
   }, [statusFilter, refreshKey, setFeedback])
 
-  // Filter data
-  const filteredData = data
-    .filter((item) => {
-      const matchesSearch =
-        item.kode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.nama.toLowerCase().includes(searchQuery.toLowerCase())
-      let matchesStatus = true
-      if (statusFilter === 'active') matchesStatus = item.status === true
-      if (statusFilter === 'inactive') matchesStatus = item.status === false
-      return matchesSearch && matchesStatus
-    })
+  // Filter data: server sudah filter status, client hanya search teks
+  const filteredData = data.filter((item) => {
+    if (searchQuery === '') return true
+    const q = searchQuery.toLowerCase()
+    return item.kode.toLowerCase().includes(q) || item.nama.toLowerCase().includes(q)
+  })
 
   // Create handler
   const handleCreate = useCallback(async (formData: { kode: string; nama: string }) => {

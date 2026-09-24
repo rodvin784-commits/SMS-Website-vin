@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-server'
-import { guruAuth, isAssigned } from '@/lib/guru-auth'
+import { areAllAssigned, guruAuth } from '@/lib/guru-auth'
 import { kirimNotifikasiKeKelas } from '@/lib/notifikasi'
 
 // Materi (DATABASE_CONTEXT.md #13-14):
@@ -78,6 +78,7 @@ export async function GET() {
       .select(MATERI_SELECT)
       .eq('guru_id', auth.guruId)
       .order('created_at', { ascending: false })
+      .limit(100)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
@@ -143,14 +144,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Guru hanya boleh mengirim materi ke kelas yang diajar untuk mapel ini
-    for (const kelasId of kelasIds) {
-      if (!(await isAssigned(auth.guruId, mapelId, kelasId))) {
-        return NextResponse.json(
-          { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
-          { status: 403 }
-        )
-      }
+    // Guru hanya boleh mengirim materi ke kelas yang diajar untuk mapel ini (batch)
+    if (!(await areAllAssigned(auth.guruId, mapelId, kelasIds))) {
+      return NextResponse.json(
+        { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
+        { status: 403 }
+      )
     }
 
     // Upload file ke bucket `materi` (private) — simpan path di kolom file_url
@@ -278,19 +277,17 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Materi ini bukan milik Anda.' }, { status: 403 })
     }
 
-    // Validasi kelas tujuan baru
+    // Validasi kelas tujuan baru (batch)
     const targetMapel = mapelId ?? existing.mata_pelajaran_id
     if (kelasIds !== undefined) {
       if (!Array.isArray(kelasIds) || kelasIds.length === 0) {
         return NextResponse.json({ error: 'Pilih minimal satu kelas tujuan.' }, { status: 400 })
       }
-      for (const kelasId of kelasIds) {
-        if (!(await isAssigned(auth.guruId, targetMapel, kelasId))) {
-          return NextResponse.json(
-            { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
-            { status: 403 }
-          )
-        }
+      if (!(await areAllAssigned(auth.guruId, targetMapel, kelasIds as string[]))) {
+        return NextResponse.json(
+          { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
+          { status: 403 }
+        )
       }
     }
 

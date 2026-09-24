@@ -40,6 +40,11 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const role = searchParams.get('role')
+    // Pagination guard: default 100, max 200 untuk cegah payload 10k
+    const limitParam = searchParams.get('limit')
+    const offsetParam = searchParams.get('offset')
+    const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 100, 1), 200) : null
+    const offset = offsetParam ? Math.max(parseInt(offsetParam, 10) || 0, 0) : null
 
     let query = supabaseAdmin
       .from('profiles')
@@ -53,6 +58,7 @@ export async function GET(request: NextRequest) {
       }
       query = query.eq('role', role)
     }
+    if (limit !== null) query = query.range(offset ?? 0, (offset ?? 0) + limit - 1)
 
     const { data, error } = await query
 

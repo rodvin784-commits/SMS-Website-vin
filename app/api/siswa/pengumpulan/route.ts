@@ -97,10 +97,14 @@ export async function POST(request: NextRequest) {
 
     const form = await request.formData()
     const tugasId = String(form.get('tugas_id') ?? '')
-    const catatan = form.get('catatan') ? String(form.get('catatan')).trim().slice(0, 2000) : null
-    const jawabanTeks = form.get('jawaban_teks')
-      ? String(form.get('jawaban_teks')).trim().slice(0, 10000)
-      : null
+    // PATCH: deteksi field ada/tidak via has() agar tidak hapus data lama tanpa sengaja
+    const hasCatatan = form.has('catatan')
+    const hasJawabanTeks = form.has('jawaban_teks')
+    const hasHapusFoto = String(form.get('hapus_foto') ?? '').toLowerCase() === 'true'
+    const catatan = hasCatatan ? String(form.get('catatan') ?? '').trim().slice(0, 2000) || null : null
+    const jawabanTeksRaw = hasJawabanTeks ? String(form.get('jawaban_teks') ?? '').trim().slice(0, 10000) : null
+    // null = field tidak dikirim (pertahankan), '' -> null tidak dianggap isi tapi tidak hapus jika PATCH
+    const jawabanTeks = jawabanTeksRaw && jawabanTeksRaw.length > 0 ? jawabanTeksRaw : null
     const fileRaw = form.get('file')
     const file = fileRaw instanceof File && fileRaw.size > 0 ? fileRaw : null
     let fotoFiles = collectFotoFilesSiswa(form)
@@ -111,9 +115,9 @@ export async function POST(request: NextRequest) {
     const hasFoto = fotoFiles.length > 0
 
     if (!tugasId) return NextResponse.json({ error: 'tugas_id wajib diisi.' }, { status: 400 })
-    if (!file && !jawabanTeks && !hasFoto) {
-      return NextResponse.json({ error: 'Isi jawaban teks, unggah file, atau tambahkan foto jawaban.' }, { status: 400 })
-    }
+    // Validasi minimal satu isi: cek field baru ATAU existing nanti (untuk update PATCH)
+    // Untuk create, harus ada isi baru; untuk update PATCH, isi lama bisa mencukupi (dicek setelah load existing)
+    const hasNewContent = Boolean(file || jawabanTeks || hasFoto)
     if (file && file.size > 25 * 1024 * 1024) {
       return NextResponse.json({ error: 'Ukuran file maksimal 25MB.' }, { status: 400 })
     }
@@ -159,12 +163,25 @@ export async function POST(request: NextRequest) {
     // Cek pengumpulan yang sudah ada untuk siswa ini (satu per tugas).
     const { data: existing, error: exErr } = await supabase
       .from('pengumpulan_tugas')
-      .select('id, file_url, foto_urls')
+      .select('id, file_url, nama_file, foto_urls, jawaban_teks, catatan')
       .eq('siswa_id', auth.siswaId)
       .eq('tugas_id', tugasId)
       .maybeSingle()
 
     if (exErr) return NextResponse.json({ error: exErr.message }, { status: 400 })
+
+    // Jika tidak ada konten baru dan tidak ada existing -> 400; jika update PATCH dengan existing ada -> izinkan (pertahankan)
+    const existingRowEarly = existing as { id: string; file_url: string | null; nama_file: string | null; foto_urls: string[] | null; jawaban_teks: string | null; catatan: string | null } | null
+    if (!hasNewContent && !existingRowEarly) {
+      return NextResponse.json({ error: 'Isi jawaban teks, unggah file, atau tambahkan foto jawaban.' }, { status: 400 })
+    }
+    if (!hasNewContent && existingRowEarly) {
+      // PATCH tanpa konten baru tapi existing ada -> tetap butuh setidaknya satu perubahan; cek apakah user kirim hasHapusFoto/hasJawabanTeks/hasCatatan kosong ingin clear?
+      // Jika semua field tidak dikirim (has* false) -> tolak
+      if (!hasJawabanTeks && !hasCatatan && !hasHapusFoto && !file && !hasFoto) {
+        return NextResponse.json({ error: 'Isi jawaban teks, unggah file, atau tambahkan foto jawaban.' }, { status: 400 })
+      }
+    }
 
     // Upload file utama (file_url) dan foto-foto (foto_urls)
     let path: string | null = null
@@ -198,24 +215,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const existingRow = existing as { id: string; file_url: string | null; foto_urls: string[] | null } | null
+    const existingRow = existing as { id: string; file_url: string | null; nama_file: string | null; foto_urls: string[] | null; jawaban_teks: string | null; catatan: string | null } | null
 
     if (existing) {
-      // Ganti pengumpulan lama (full-replace: file null => hapus, foto null/0 => hapus jika tidak dikirim ulang? 
-      // Untuk foto: jika fotoFiles ada => ganti dengan yang baru; jika tidak ada foto baru dan sebelumnya ada foto => pertahankan? 
-      // Kita pakai: jika fotoFiles diajukan => replace; jika tidak diajukan dan tidak ada file/jawaban baru yang menggantikan foto, pertahankan agar tidak hilang tanpa sengaja.
-      // Namun jika user kirim teks-only tanpa foto, kita anggap ingin hapus foto lama (full-replace seperti file).
-      // Jadi: jika fotoFiles.length>0 => foto_urls = fotoPaths, else foto_urls = null (hapus)
-      // Untuk menjaga UX multi-foto replace, ini sesuai.
-      const nextFotoUrls = fotoFiles.length > 0 ? fotoPaths : null
+      // PATCH: hanya ubah field yang dikirim; field tidak dikirim -> pertahankan nilai lama (anti data loss)
+      const nextFileUrl = file ? path : existingRow!.file_url
+      const nextNamaFile = file ? (file.name ?? null) : existingRow!.nama_file
+      // foto: hapus hanya jika flag hapus_foto=true atau ada foto baru (replace). Jika tidak kirim foto & tidak minta hapus -> pertahankan.
+      let nextFotoUrls: string[] | null
+      if (fotoFiles.length > 0) nextFotoUrls = fotoPaths
+      else if (hasHapusFoto) nextFotoUrls = null
+      else nextFotoUrls = existingRow!.foto_urls
+      const nextJawabanTeks = hasJawabanTeks ? jawabanTeks : existingRow!.jawaban_teks
+      const nextCatatan = hasCatatan ? catatan : existingRow!.catatan
+      // Validasi setelah PATCH: minimal satu konten (file/foto/jawaban) harus ada
+      const hasContentAfterPatch = Boolean(nextFileUrl || (nextFotoUrls && nextFotoUrls.length > 0) || nextJawabanTeks)
+      if (!hasContentAfterPatch) {
+        if (path) await supabase.storage.from('pengumpulan').remove([path])
+        if (fotoPaths && fotoPaths.length > 0) await supabase.storage.from('pengumpulan').remove(fotoPaths)
+        return NextResponse.json({ error: 'Minimal satu jawaban (teks/file/foto) harus terisi.' }, { status: 400 })
+      }
       const { error: updErr } = await supabase
         .from('pengumpulan_tugas')
         .update({
-          file_url: path,
-          nama_file: file?.name ?? null,
+          file_url: nextFileUrl,
+          nama_file: nextNamaFile,
           foto_urls: nextFotoUrls,
-          jawaban_teks: jawabanTeks,
-          catatan,
+          jawaban_teks: nextJawabanTeks,
+          catatan: nextCatatan,
           status,
           submitted_at: now,
           updated_at: now,
@@ -228,12 +255,16 @@ export async function POST(request: NextRequest) {
         if (fotoPaths && fotoPaths.length > 0) await supabase.storage.from('pengumpulan').remove(fotoPaths)
         return NextResponse.json({ error: updErr.message }, { status: 400 })
       }
-      if (existingRow?.file_url && existingRow.file_url !== path) {
+      // Hapus file lama hanya jika ada file baru yang menggantikan
+      if (file && existingRow?.file_url && existingRow.file_url !== path) {
         await supabase.storage.from('pengumpulan').remove([existingRow.file_url])
       }
       if (existingRow?.foto_urls && existingRow.foto_urls.length > 0) {
-        const toRemove = existingRow.foto_urls.filter((p) => !(nextFotoUrls ?? []).includes(p))
-        if (toRemove.length > 0) await supabase.storage.from('pengumpulan').remove(toRemove)
+        // Hanya hapus foto lama jika ada foto baru atau flag hapus
+        if (fotoFiles.length > 0 || hasHapusFoto) {
+          const toRemove = existingRow.foto_urls.filter((p) => !(nextFotoUrls ?? []).includes(p))
+          if (toRemove.length > 0) await supabase.storage.from('pengumpulan').remove(toRemove)
+        }
       }
     } else {
       const { error: insErr } = await supabase

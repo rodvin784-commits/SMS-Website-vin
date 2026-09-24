@@ -30,7 +30,7 @@ export async function GET() {
       getNilaiSiswa(auth.siswaId),
       getSupabaseAdmin()
         .from('notifikasi')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('profile_id', auth.userId)
         .eq('is_read', false),
     ])
