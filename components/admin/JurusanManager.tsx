@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
-import { useFeedback } from '@/hooks/useFeedback'
+import { useAdminMutate } from '@/hooks/useAdminMutate'
 
 interface JurusanData {
   id: string
@@ -36,10 +36,6 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<JurusanData | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  // Feedback (auto-dismiss)
-  const { feedback, showFeedback, setFeedback } = useFeedback()
 
   // Refresh trigger: naikkan angka untuk memuat ulang data (dipakai setelah mutasi)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -47,6 +43,9 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
     setRefreshKey((k) => k + 1)
     if (onDataChanged) onDataChanged()
   }, [onDataChanged])
+
+  // Feedback + mutate DRY (ganti 3 handler duplikat)
+  const { feedback, showFeedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/jurusan', refreshData)
 
   // Load data on mount, saat filter berubah, atau saat refresh diminta
   useEffect(() => {
@@ -89,86 +88,30 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
     return filteredData.slice(start, start + pageSize)
   }, [filteredData, currentPage])
 
-  // Create handler
+  // Create handler — DRY via mutate
   const handleCreate = useCallback(async (formData: { kode: string; nama: string }) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/jurusan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menambahkan jurusan')
-      }
-
-      showFeedback('success', 'Jurusan berhasil ditambahkan!')
+      await mutate('POST', formData)
       setIsCreateModalOpen(false)
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate])
 
   // Update handler
   const handleUpdate = useCallback(async (id: string, formData: { kode?: string; nama?: string; status?: boolean }) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/jurusan', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...formData }),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal memperbarui jurusan')
-      }
-
-      showFeedback('success', 'Jurusan berhasil diperbarui!')
+      await mutate('PUT', { id, ...formData })
       setIsEditModalOpen(false)
       setEditingItem(null)
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate])
 
   // Delete handler
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm('Apakah Anda yakin ingin menghapus jurusan ini? Tindakan ini tidak dapat dibatalkan.')) return
-
-    setFeedback(null)
-
     try {
-      const res = await fetch(`/api/admin/jurusan?id=${id}`, {
-        method: 'DELETE',
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menghapus jurusan')
-      }
-
-      showFeedback('success', 'Jurusan berhasil dihapus!')
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    }
-  }, [refreshData, showFeedback, setFeedback])
+      await mutate('DELETE', undefined, `?id=${id}`)
+    } catch {}
+  }, [mutate])
 
   return (
     <div className="space-y-6">
