@@ -1,6 +1,6 @@
 # Dokumentasi Projek - Project Tim by Vin-Vines
 
-Tanggal: 2026-09-23 (update terbaru)
+Tanggal: 2026-09-24 (update terbaru — P0/P1/P2 hardening & perf)
 
 ---
 
@@ -96,6 +96,17 @@ project-tim-vin-vines/
 - **Password test:** `fence12@gmail.com` direset ke `12345678` (service_role) untuk verifikasi end-to-end (Supabase Auth + `/api/siswa/me` 200).
 - **Audit hardening 2026-09-23 (lanjutan):** storage 3 bucket `materi/tugas/pengumpulan` `public:false` (anon list `200 []` kosong ✓, signed URL), guru validasi `lib/guru-auth.ts:118` `isAssigned` dipakai di `app/api/teacher/tugas/route.ts:221`, `materi:148`, `video`, `nilai`, `pengumuman:52` (`getKelasDiajar`), siswa isolasi `lib/siswa-query.ts:32` semua query filter `kelasId`/`siswaId` + RLS `notifikasi_select_own` `USING (profile_id=auth.uid())`.
 - **Perf render & DB:** APK `src/App.tsx:1` `React.lazy` + `Suspense` + `vite.config.ts:6` `manualChunks (vendor-react/supabase)` + splash `2100→1400ms` `SplashScreen.tsx:13` + keep-alive tabs `display:none` + `cacheDashboard` stale-while-revalidate `lib/cache.ts:71` + prefetch idle tabs; Web `app/api/siswa/dashboard/route.ts:41` `Cache-Control private 15s` + `next.config.ts:26` `avif/webp`; DB `supabase/migrations/20260923_add_indexes_and_dashboard_rpc.sql:1` 16 index + RPC `get_dashboard_stats`; admin filter `app/admin/users/page.tsx:33` fix double fetch → single fetch + filter client instant, stats global tidak jadi 0, UI minimalis `Semua/Guru/Siswa` + status `Aktif`.
+
+### Updates Terbaru (2026-09-24) — P0/P1/P2 Hardening & Perf (review Tech Lead)
+- **P0-1 PATCH pengumpulan:** `app/api/siswa/pengumpulan/route.ts:98` ganti full-replace → PATCH scoped: `hasJawabanTeks/hasCatatan/hasHapusFoto` via `form.has()`, `existing` pertahankan jika tidak dikirim; `nextFotoUrls` hanya null jika `hapus_foto=true` atau ada foto baru; validasi `hasContentAfterPatch`. Cegah data loss teks-only hapus 5 foto.
+- **P0-2 Middleware:** `middleware.ts:11` CORS fail-closed (`null` jika `origin` tidak whitelist/`MOBILE_ORIGINS` kosong → 403), `Vary: Origin`, `matcher` tambah `/api/admin/:path*`, role guard `/admin` hanya admin, `/teacher` hanya guru (via `profiles.role`).
+- **P0-3 Kelas & Jadwal:** `app/api/admin/kelas/route.ts:149` duplikat check pakai `.is()` untuk null, PUT hitung `final*` dari `current` (hapus bug `tingkat ??0`), DELETE cek `siswa.kelas_id`; `app/api/admin/jadwal/route.ts:69` `activeKelasIds.length===0` return kosong (jangan bocorkan semua), PUT validasi `tahun_ajaran` required, DELETE verifikasi exist 404.
+- **P0-4/5:** `app/api/siswa/dashboard/route.ts:33` fix `select('*',count)`; `lib/api-admin.ts:17` `serverError` generic (jangan bocorkan `err.message`).
+- **P1-1 Batch & Parallel:** `lib/guru-auth.ts:138` `areAllAssigned()` batch 1 query `IN`; pakai di `teacher/tugas:220,486`, `materi:147,288`, `video:148,284`; `teacher/tugas` foto parallel `Promise.all`, `siswa/tugas/download:56` validasi `foto_index` integer + parallel `createSignedUrl`, `lib/siswa-query.ts:473` `getPengumpulanBatch()` 1 query vs N, `siswa/tugas/route.ts:32` `Cache-Control private 15s`.
+- **P1-2 Cache-Control:** `app/api/siswa/{materi,video,pengumuman,jadwal,nilai}/route.ts` semua `private, max-age=15, stale-while-revalidate=30`.
+- **P1-3 Guard:** `teacher/tugas:232,449` block `html/svg/js/exe` lampiran, `deadline: null` (bukan `now()`), `limit 100` di `teacher/tugas/materi/video` & pagination guard `admin/users?limit 200`; APK `src/lib/cache.ts:1` scoped `siswa_cache_<uid>_*` + `setSiswaScope`/`clearAllCacheIncludingScope`, `App.tsx:6` wiring login/logout; `NilaiManager.tsx:100` debounce 400ms `tahunAjaran`.
+- **P2 Clean:** `lib/utils.ts:1` `pickOne` shared, `hooks/useTeacherAuth.ts:1` DRY 7 page guru (`tugas/materi/nilai/jadwal/pengumuman/mata-pelajaran/dashboard` 40→3 baris), `hooks/useAdminMutate.ts:1` & `hooks/useDebouncedValue.ts:1`, `KelasManager.tsx:133` & `JurusanManager.tsx:76` hapus double filter server+client, `App.tsx:133` keep-alive `display:none` → conditional render, `usePollingNotifikasi.ts:32` pause jika `visibilityState !== visible`.
+- **P2 Sisa (2026-09-24 lanjut):** `app/admin/users/page.tsx:3` debounce 300ms `debouncedSearch` + pagination client 20/page (`currentPage`, `pagedUsers`, `Prev/Next`), `siswa_apk/src/hooks/usePollingNotifikasi.ts` sudah visibility, `lib/utils.ts` siap untuk semua `pickOne`.
 
 ### Updates Sebelumnya (2026-09-17)
 - **Migration baru:** `20260917_make_jurusan_id_nullable_in_siswa.sql` — Fix constraint error saat membuat siswa

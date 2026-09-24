@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
@@ -8,6 +8,7 @@ export function useTeacherAuth() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [guruId, setGuruId] = useState<string | null>(null)
+  const [teacherName, setTeacherName] = useState('Guru')
 
   useEffect(() => {
     let cancelled = false
@@ -20,7 +21,7 @@ export function useTeacherAuth() {
         }
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role,status')
+          .select('nama_lengkap,role,status')
           .eq('id', session.user.id)
           .maybeSingle()
         if (!profile || profile.role !== 'guru' || profile.status === false) {
@@ -29,6 +30,7 @@ export function useTeacherAuth() {
           return
         }
         if (!cancelled) {
+          setTeacherName((profile as { nama_lengkap?: string | null }).nama_lengkap || 'Guru')
           // resolve guruId via API atau langsung select
           const { data: guru } = await supabase.from('guru').select('id').eq('profile_id', session.user.id).maybeSingle()
           setGuruId((guru as { id: string } | null)?.id ?? null)
@@ -44,5 +46,10 @@ export function useTeacherAuth() {
     return () => { cancelled = true }
   }, [router])
 
-  return { loading, guruId }
+  const handleLogout = useCallback(async () => {
+    await supabase.auth.signOut()
+    router.replace('/login')
+  }, [router])
+
+  return { loading, guruId, teacherName, handleLogout }
 }

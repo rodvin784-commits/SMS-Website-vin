@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UserPlus, Users, Search, Filter, RefreshCw } from 'lucide-react'
+import { UserPlus, Users, Search, Filter, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { FeedbackMessage, Button } from '@/components/ui'
 import { useFeedback } from '@/hooks/useFeedback'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { UserTable, CreateUserModal, EditUserModal } from '@/components/admin'
 import type { Profile } from '@/components/admin/UserTable'
 
@@ -56,8 +57,12 @@ export default function AdminUsersPage() {
 
   // Filter State
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearch = useDebouncedValue(searchQuery, 300)
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('semua')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  // Pagination client-side (cukup untuk 200-500 user, server guard limit 200)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
 
   // Feedback State (auto-dismiss)
   const { feedback, showFeedback } = useFeedback()
@@ -243,9 +248,9 @@ export default function AdminUsersPage() {
     }
   }, [showFeedback])
 
-  // Filter client-side instant (role + search + status) — tidak fetch lagi saat ganti tab filter
+  // Filter client-side instant (role + search + status) — pakai debouncedSearch agar tidak re-filter tiap keystroke
   const filteredUsers = useMemo(() => {
-    const search = searchQuery.toLowerCase().trim()
+    const search = debouncedSearch.toLowerCase().trim()
     return users
       .filter((user) => user.role !== 'admin')
       .filter((user) => {
@@ -262,7 +267,7 @@ export default function AdminUsersPage() {
         if (statusFilter === 'inactive') return user.status === false
         return true
       })
-  }, [users, searchQuery, statusFilter, roleFilter])
+  }, [users, debouncedSearch, statusFilter, roleFilter])
 
   // Count users by status for filtered results
   const filteredStats = useMemo(() => {
@@ -273,6 +278,15 @@ export default function AdminUsersPage() {
       inactive: filtered.filter(u => u.status === false).length,
     }
   }, [filteredUsers])
+
+  // Reset page saat filter/search berubah
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, roleFilter, statusFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize))
+  const pagedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredUsers.slice(start, start + pageSize)
+  }, [filteredUsers, currentPage])
 
   return (
     <div className="space-y-6">
@@ -425,9 +439,9 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* User Table */}
+      {/* User Table (paginated 20) */}
       <UserTable
-        users={filteredUsers}
+        users={pagedUsers}
         loading={loading}
         onEdit={(user) => {
           setEditingUser(user)
@@ -436,6 +450,19 @@ export default function AdminUsersPage() {
         onDelete={handleDeleteUser}
         showCount={true}
       />
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white rounded-xl p-3 border border-gray-100">
+          <span className="text-xs text-gray-500">Halaman {currentPage} / {totalPages} · {filteredStats.total} hasil</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>
+              <ChevronLeft className="h-4 w-4" /> Prev
+            </Button>
+            <Button variant="secondary" size="sm" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>
+              Next <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Create User Modal */}
       <CreateUserModal
