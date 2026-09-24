@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Pencil, Trash2, GraduationCap, Search, CheckCircle2, Filter, Building2, ArrowRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, GraduationCap, Search, CheckCircle2, Filter, Building2, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -26,6 +27,9 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
   const [data, setData] = useState<JurusanData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearch = useDebouncedValue(searchQuery, 300)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   // Modal states
@@ -74,10 +78,16 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
 
   // Filter data: server sudah filter status, client hanya search teks
   const filteredData = data.filter((item) => {
-    if (searchQuery === '') return true
-    const q = searchQuery.toLowerCase()
+    if (debouncedSearch === '') return true
+    const q = debouncedSearch.toLowerCase()
     return item.kode.toLowerCase().includes(q) || item.nama.toLowerCase().includes(q)
   })
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, statusFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize))
+  const pagedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredData.slice(start, start + pageSize)
+  }, [filteredData, currentPage])
 
   // Create handler
   const handleCreate = useCallback(async (formData: { kode: string; nama: string }) => {
@@ -295,7 +305,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredData.map((item) => (
+                {pagedData.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group">
                     <td className="py-4 px-6 font-bold text-amber-600 text-sm">{item.kode}</td>
                     <td className="py-4 px-6 font-semibold text-gray-900">{item.nama}</td>
@@ -349,6 +359,15 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      {filteredData.length > 20 && (
+        <div className="flex items-center justify-between bg-white rounded-xl p-3 border border-gray-100">
+          <span className="text-xs text-gray-500">Halaman {currentPage} / {totalPages} · {filteredData.length} hasil</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}><ChevronLeft className="h-4 w-4" /> Prev</Button>
+            <Button variant="secondary" size="sm" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>Next <ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
       )}

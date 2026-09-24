@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Plus, Pencil, Trash2, GraduationCap, Filter, Search, CheckCircle2, Building2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, GraduationCap, Filter, Search, CheckCircle2, Building2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -44,6 +45,9 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
   const [data, setData] = useState<KelasData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearch = useDebouncedValue(searchQuery, 300)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [tingkatFilter, setTingkatFilter] = useState<string>('all')
   // Filter jurusan via URL (dari badge di halaman Jurusan) dan dropdown
@@ -131,8 +135,8 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
 
   // Filter data: server sudah filter status/tingkat/jurusan, client hanya search teks (hindari double filter)
   const filteredData = data.filter((item) => {
-    if (searchQuery === '') return true
-    const q = searchQuery.toLowerCase()
+    if (debouncedSearch === '') return true
+    const q = debouncedSearch.toLowerCase()
     return (
       item.nama_kelas.toLowerCase().includes(q) ||
       item.tahun_ajaran.toLowerCase().includes(q) ||
@@ -141,6 +145,12 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
       (item.jurusan?.kode.toLowerCase().includes(q) ?? false)
     )
   })
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, statusFilter, tingkatFilter, jurusanFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize))
+  const pagedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredData.slice(start, start + pageSize)
+  }, [filteredData, currentPage])
 
   // Create handler
   const handleCreate = useCallback(async (formData: KelasFormData) => {
@@ -396,7 +406,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredData.map((item) => (
+                {pagedData.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group">
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
@@ -476,6 +486,15 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      {filteredData.length > 20 && (
+        <div className="flex items-center justify-between bg-white rounded-xl p-3 border border-gray-100">
+          <span className="text-xs text-gray-500">Halaman {currentPage} / {totalPages} · {filteredData.length} hasil</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}><ChevronLeft className="h-4 w-4" /> Prev</Button>
+            <Button variant="secondary" size="sm" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>Next <ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
       )}

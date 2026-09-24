@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
-import { Plus, Pencil, Trash2, Archive, ArchiveRestore, BookOpen, Filter, Search, CheckCircle2, Users, GraduationCap, UserCog, Eye } from 'lucide-react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import { Plus, Pencil, Trash2, Archive, ArchiveRestore, BookOpen, Filter, Search, CheckCircle2, Users, GraduationCap, UserCog, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -34,6 +35,9 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
   const [data, setData] = useState<MataPelajaranData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearch = useDebouncedValue(searchQuery, 300)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   // Modal states
@@ -242,7 +246,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
   // Filter data
   const filteredData = data
     .filter((item) => {
-      const searchLower = searchQuery.toLowerCase()
+      const searchLower = debouncedSearch.toLowerCase()
       const matchesSearch =
         item.kode.toLowerCase().includes(searchLower) ||
         item.nama.toLowerCase().includes(searchLower) ||
@@ -252,6 +256,12 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       if (statusFilter === 'inactive') matchesStatus = item.status === false
       return matchesSearch && matchesStatus
     })
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, statusFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize))
+  const pagedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredData.slice(start, start + pageSize)
+  }, [filteredData, currentPage])
 
   // Buka modal detail — mode 'view' (mata, read-only) atau 'manage' (kelola penugasan)
   const openDetail = useCallback(async (item: MataPelajaranData, mode: 'view' | 'manage' = 'view') => {
@@ -520,7 +530,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredData.map((item) => (
+                {pagedData.map((item) => (
                   <tr
                     key={item.id}
                     className="hover:bg-gray-50/80 transition-colors group cursor-pointer"
@@ -616,6 +626,15 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      {filteredData.length > 20 && (
+        <div className="flex items-center justify-between bg-white rounded-xl p-3 border border-gray-100">
+          <span className="text-xs text-gray-500">Halaman {currentPage} / {totalPages} · {filteredData.length} hasil</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}><ChevronLeft className="h-4 w-4" /> Prev</Button>
+            <Button variant="secondary" size="sm" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>Next <ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
       )}
