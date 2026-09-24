@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useKelasOptions } from '@/hooks/useKelasOptions'
+import { validateUserCreate } from '@/lib/user-validation'
 
 interface CreateUserFormData {
   nama_lengkap: string
@@ -53,6 +54,8 @@ export function CreateUserModal({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    const err = validateUserCreate({ nama_lengkap: formData.nama_lengkap, email: formData.email, password: formData.password, role: formData.role, nis: formData.nis, kelas_id: formData.kelas_id })
+    if (err) { alert(err); return }
     await onSubmit(formData)
   }
 

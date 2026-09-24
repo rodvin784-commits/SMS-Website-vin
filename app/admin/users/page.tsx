@@ -5,6 +5,7 @@ import { UserPlus, Users, Search, Filter, RefreshCw, ChevronLeft, ChevronRight }
 import { FeedbackMessage, Button } from '@/components/ui'
 import { useFeedback } from '@/hooks/useFeedback'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import { validateUserCreate, validateUserEdit } from '@/lib/user-validation'
 import { UserTable, CreateUserModal, EditUserModal } from '@/components/admin'
 import type { Profile } from '@/components/admin/UserTable'
 
@@ -137,18 +138,8 @@ export default function AdminUsersPage() {
     nip?: string
     nis?: string
   }) => {
-    if (!data.email || !data.password || !data.nama_lengkap) {
-      showFeedback('error', 'Semua field wajib diisi!')
-      return
-    }
-    if (data.password.length < 6) {
-      showFeedback('error', 'Password minimal 6 karakter!')
-      return
-    }
-    if (data.role === 'siswa' && !data.nis) {
-      showFeedback('error', 'NIS wajib diisi untuk akun siswa!')
-      return
-    }
+    const v = validateUserCreate({ nama_lengkap: data.nama_lengkap, email: data.email, password: data.password, role: data.role, nis: data.nis, kelas_id: data.kelas_id })
+    if (v) { showFeedback('error', v); return }
 
     setSubmitting(true)
     try {
@@ -196,10 +187,8 @@ export default function AdminUsersPage() {
       showFeedback('error', 'Data pengguna tidak valid!')
       return
     }
-    if (!data.nama_lengkap || !data.email) {
-      showFeedback('error', 'Nama dan email wajib diisi!')
-      return
-    }
+    const v = validateUserEdit({ nama_lengkap: data.nama_lengkap, email: data.email, password: data.password })
+    if (v) { showFeedback('error', v); return }
 
     setSubmitting(true)
     try {
