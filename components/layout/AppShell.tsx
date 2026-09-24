@@ -125,7 +125,7 @@ export function AppShell({
             className="w-full flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium text-sm transition-colors border border-gray-100"
           >
             <User className="h-4 w-4" />
-            <span>Profil & Ganti Sandi</span>
+            <span>Profil</span>
           </Link>
           <button
             onClick={onLogout}
