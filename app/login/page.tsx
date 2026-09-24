@@ -135,16 +135,9 @@ export default function LoginPage() {
               </div>
 
               <div>
-                {/* Label + bantuan reset — sederhana, tanpa dead-link untuk awam */}
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
-                    Kata Sandi
-                  </label>
-                  {/* Tidak ada fitur reset mandiri; arahkan ke admin agar tidak bingung */}
-                  <span className="text-xs font-semibold text-gray-500" title="Hubungi admin sekolah untuk reset kata sandi">
-                    Lupa? Hubungi admin
-                  </span>
-                </div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+                  Kata Sandi
+                </label>
                 <IconInput
                   type="password"
                   placeholder="Masukkan kata sandi"
@@ -152,6 +145,9 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
+                <p className="text-xs font-semibold text-gray-500 mt-1.5 text-right" title="Hubungi admin sekolah untuk reset kata sandi">
+                  Lupa? Hubungi admin
+                </p>
               </div>
 
               <Button type="submit" loading={loading} fullWidth size="lg">
