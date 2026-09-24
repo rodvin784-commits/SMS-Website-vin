@@ -1,10 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { AppShell } from '@/components/layout/AppShell'
-import { useTeacherAuth } from '@/hooks/useTeacherAuth'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { teacherNavItems } from '@/lib/teacher-nav'
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -43,17 +41,17 @@ export default function ProfilePage() {
     setSaving(false)
   }
 
-  const nav = role==='admin' ? [] : teacherNavItems
-  const shellRole = role==='admin' ? 'admin' as const : 'teacher' as const
-
   if(loading) return <div className="flex min-h-screen items-center justify-center">Memuat...</div>
 
   return (
-    <AppShell role={shellRole} userName={userName} navItems={nav as never[]} onLogout={async()=>{await supabase.auth.signOut(); router.replace('/login')}}>
+    <div className="min-h-screen bg-[#f8fafc] p-6">
       <div className="max-w-2xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-extrabold">Profil & Ganti Sandi</h1>
-          <p className="text-sm text-gray-500">Ganti sandi hanya 1 kali (self-service). Setelah itu hubungi admin.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-extrabold">Profil & Ganti Sandi</h1>
+            <p className="text-sm text-gray-500">Halo, {userName} ({role}) — ganti sandi hanya 1 kali.</p>
+          </div>
+          <Link href={role==='admin' ? '/admin/dashboard' : role==='guru' ? '/teacher/dashboard' : '/login'} className="px-4 py-2 rounded-xl bg-white border text-sm">← Kembali</Link>
         </div>
         <div className="bg-white rounded-2xl p-6 border space-y-3">
           <p className="text-sm">Kesempatan: <b>{remaining} / 1</b> {used>=1 && <span className="text-rose-600">(sudah dipakai)</span>}</p>
@@ -66,6 +64,6 @@ export default function ProfilePage() {
           {remaining===0 && <p className="text-xs text-gray-400 text-center">Hubungi admin untuk reset.</p>}
         </div>
       </div>
-    </AppShell>
+    </div>
   )
 }

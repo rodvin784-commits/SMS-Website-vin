@@ -12,6 +12,7 @@ import {
   LogOut,
   ShieldCheck,
   GraduationCap as GraduationCapIcon,
+  User,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -118,7 +119,14 @@ export function AppShell({
           })()}
         </nav>
 
-        <div className="p-3 border-t border-gray-100">
+        <div className="p-3 border-t border-gray-100 space-y-2">
+          <Link
+            href="/profile"
+            className="w-full flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium text-sm transition-colors border border-gray-100"
+          >
+            <User className="h-4 w-4" />
+            <span>Profil & Ganti Sandi</span>
+          </Link>
           <button
             onClick={onLogout}
             className="w-full flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl text-gray-500 hover:bg-gray-50 hover:text-gray-900 font-medium text-sm transition-colors"
