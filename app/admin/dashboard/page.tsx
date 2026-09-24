@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Clock,
   Filter,
+  UserCheck,
 } from 'lucide-react'
 
 interface KelasDist {
@@ -52,6 +53,7 @@ interface DashboardResponse {
     totalKelas: number
     totalJurusan: number
   }
+  presensi?: { tanggal: string; hadir: number; izin: number; sakit: number; alpha: number; total: number }
   kelas: KelasBaris[]
   jurusan: { id: string; kode: string; nama: string }[]
   tahun_ajaran: string[]
@@ -94,6 +96,7 @@ export default function AdminDashboardPage() {
   const [totalGuru, setTotalGuru] = useState<number | string>('--')
   const [totalSiswa, setTotalSiswa] = useState<number | string>('--')
   const [totalMapel, setTotalMapel] = useState<number | string>('--')
+  const [presensiHariIni, setPresensiHariIni] = useState<DashboardResponse['presensi'] | null>(null)
   const [kelasList, setKelasList] = useState<KelasBaris[]>([])
   const [jurusanOptions, setJurusanOptions] = useState<{ id: string; kode: string; nama: string }[]>([])
   const [tahunAjaranOptions, setTahunAjaranOptions] = useState<string[]>([])
@@ -114,6 +117,7 @@ export default function AdminDashboardPage() {
       setTotalGuru(data.stats.totalGuru)
       setTotalSiswa(data.stats.totalSiswa)
       setTotalMapel(data.stats.totalMapel)
+      setPresensiHariIni(data.presensi ?? null)
       setKelasList(data.kelas)
       setJurusanOptions(data.jurusan)
       setTahunAjaranOptions(data.tahun_ajaran)
@@ -209,12 +213,38 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Grid Statistik */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <StatCard icon={Users} label="Guru Aktif" value={totalGuru} variant="blue" delay={0} />
         <StatCard icon={GraduationCap} label="Siswa Aktif" value={totalSiswa} variant="emerald" delay={100} />
         <StatCard icon={BookOpen} label="Mapel Aktif" value={totalMapel} variant="purple" delay={200} />
         <StatCard icon={Calendar} label="Kelas Aktif" value={loading ? '--' : totalKelasAktif} variant="amber" delay={300} />
+        <StatCard icon={UserCheck} label={`Hadir Hari Ini${presensiHariIni ? ` (${presensiHariIni.tanggal})` : ''}`} value={presensiHariIni ? `${presensiHariIni.hadir}/${presensiHariIni.total || 0}` : '--'} variant="emerald" delay={400} />
       </div>
+
+      {/* Presensi Hari Ini */}
+      {presensiHariIni && presensiHariIni.total > 0 && (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+          <h2 className="text-base font-bold text-gray-900 mb-1">Presensi Hari Ini</h2>
+          <p className="text-sm text-gray-500 mb-4">{presensiHariIni.tanggal} · {presensiHariIni.total} entri</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {([
+              { k: 'hadir', label: 'Hadir', cls: 'bg-emerald-500' },
+              { k: 'izin', label: 'Izin', cls: 'bg-blue-500' },
+              { k: 'sakit', label: 'Sakit', cls: 'bg-amber-500' },
+              { k: 'alpha', label: 'Alpha', cls: 'bg-rose-500' },
+            ] as const).map((it) => {
+              const v = Number((presensiHariIni as unknown as Record<string, unknown>)[it.k] ?? 0)
+              const pct = presensiHariIni.total ? Math.round((v / presensiHariIni.total) * 100) : 0
+              return (
+                <div key={it.k} className="bg-gray-50 rounded-xl p-3">
+                  <div className="flex items-center justify-between text-xs mb-1"><span className="font-bold text-gray-700">{it.label}</span><span className="text-gray-500">{v} · {pct}%</span></div>
+                  <div className="h-2 rounded-full bg-gray-200 overflow-hidden"><div className={`h-full ${it.cls}`} style={{ width: `${pct}%` }} /></div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filter */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">

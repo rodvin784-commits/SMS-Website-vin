@@ -64,7 +64,8 @@ export async function GET() {
       new Set(kelasRows.map((k) => k.tahun_ajaran).filter((t): t is string => !!t))
     ).sort((a, b) => b.localeCompare(a))
 
-    const [activityUsers, activityKelas, activityPenugasan] = await Promise.all([
+    const today = new Date().toISOString().slice(0, 10)
+    const [activityUsers, activityKelas, activityPenugasan, presensiHariIni] = await Promise.all([
       supabaseAdmin
         .from('profiles')
         .select('id, nama_lengkap, role, created_at')
@@ -83,6 +84,7 @@ export async function GET() {
         )
         .order('created_at', { ascending: false })
         .limit(5),
+      supabaseAdmin.from('presensi').select('status').eq('tanggal', today),
     ])
 
     const activity: Array<{ id: string; type: 'user' | 'kelas' | 'penugasan'; title: string; subtitle: string; time: string }> = []
@@ -135,6 +137,12 @@ export async function GET() {
     activity.sort((a, b) => +new Date(b.time) - +new Date(a.time))
     activity.splice(8)
 
+    const presensiCounts = { hadir: 0, izin: 0, sakit: 0, alpha: 0, total: 0 }
+    for (const p of (presensiHariIni.data ?? []) as { status: string }[]) {
+      if (p.status in presensiCounts) (presensiCounts as Record<string, number>)[p.status]++
+      presensiCounts.total++
+    }
+
     return NextResponse.json(
       {
         stats: {
@@ -144,6 +152,7 @@ export async function GET() {
           totalKelas: kelasRows.length,
           totalJurusan: jurusanRows.length,
         },
+        presensi: { tanggal: today, ...presensiCounts },
         kelas: kelasRows,
         jurusan: jurusanRows,
         tahun_ajaran: tahunAjaran,
