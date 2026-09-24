@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   CalendarDays,
   Camera,
@@ -128,6 +128,13 @@ export function TugasManager() {
   const [nilaiForm, setNilaiForm] = useState<Record<string, { nilai: string; feedback: string }>>({})
   const [gradingId, setGradingId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const fotoPreviewsRef = useRef<string[]>([])
+  useEffect(() => { fotoPreviewsRef.current = fotoPreviews }, [fotoPreviews])
+  useEffect(() => {
+    return () => {
+      fotoPreviewsRef.current.forEach((u) => URL.revokeObjectURL(u))
+    }
+  }, [])
 
   // Mapel unik dari penugasan
   const mapelOptions = (() => {
