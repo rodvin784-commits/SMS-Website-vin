@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Megaphone,
   Video,
+  UserCheck,
 } from 'lucide-react'
 
 /**
@@ -21,5 +22,6 @@ export const teacherNavItems = [
   { href: '/teacher/materi', icon: Video, label: 'Materi & Video' },
   { href: '/teacher/pengumuman', icon: Megaphone, label: 'Pengumuman' },
   { href: '/teacher/jadwal', icon: Calendar, label: 'Jadwal Mengajar' },
+  { href: '/teacher/presensi', icon: UserCheck, label: 'Presensi' },
   { href: '/teacher/nilai', icon: FileText, label: 'Nilai Siswa' },
 ]
