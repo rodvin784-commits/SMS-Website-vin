@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
-import { useFeedback } from '@/hooks/useFeedback'
+import { useAdminMutate } from '@/hooks/useAdminMutate'
 
 interface JurusanData {
   id: string
@@ -58,10 +58,10 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<KelasData | null>(null)
-  const [submitting, setSubmitting] = useState(false)
 
-  // Feedback (auto-dismiss)
-  const { feedback, showFeedback, setFeedback } = useFeedback()
+  // Refresh trigger: defined before mutate so hook can use it
+  // (refreshData didefinisikan di atas useAdminMutate)
+  // Feedback + mutate DRY akan didefinisikan setelah refreshData
 
   // Tahun ajaran options (otomatis generate)
   const tahunAjaranOptions: string[] = useMemo(() => {
@@ -76,6 +76,8 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
     setRefreshKey((k) => k + 1)
     if (onDataChanged) onDataChanged()
   }, [onDataChanged])
+
+  const { feedback, showFeedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/kelas', refreshData)
 
   // Load data on mount, saat filter berubah, atau saat refresh diminta
   useEffect(() => {
@@ -152,86 +154,30 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
     return filteredData.slice(start, start + pageSize)
   }, [filteredData, currentPage])
 
-  // Create handler
+  // Create handler — DRY via mutate
   const handleCreate = useCallback(async (formData: KelasFormData) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/kelas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menambahkan kelas')
-      }
-
-      showFeedback('success', 'Kelas berhasil ditambahkan!')
+      await mutate('POST', formData)
       setIsCreateModalOpen(false)
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate])
 
   // Update handler
   const handleUpdate = useCallback(async (id: string, formData: Partial<KelasFormData> & { status?: boolean }) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/kelas', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...formData }),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal memperbarui kelas')
-      }
-
-      showFeedback('success', 'Kelas berhasil diperbarui!')
+      await mutate('PUT', { id, ...formData })
       setIsEditModalOpen(false)
       setEditingItem(null)
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate])
 
   // Delete handler
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm('Apakah Anda yakin ingin menghapus kelas ini? Tindakan ini tidak dapat dibatalkan.')) return
-
-    setFeedback(null)
-
     try {
-      const res = await fetch(`/api/admin/kelas?id=${id}`, {
-        method: 'DELETE',
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menghapus kelas')
-      }
-
-      showFeedback('success', 'Kelas berhasil dihapus!')
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    }
-  }, [refreshData, showFeedback, setFeedback])
+      await mutate('DELETE', undefined, `?id=${id}`)
+    } catch {}
+  }, [mutate])
 
   // Generate tingkat options (10-12)
   const tingkatOptions = useMemo((): { value: string; label: string }[] => {
