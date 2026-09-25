@@ -60,9 +60,17 @@ export function CreateUserModal({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    // siswa: password boleh kosong (auto di server)
     const err = validateUserCreate({ nama_lengkap: formData.nama_lengkap, email: formData.email, password: formData.password, role: formData.role, nis: formData.nis, kelas_id: formData.kelas_id })
     if (err) { alert(err); return }
-    await onSubmit(formData)
+    // kirim dengan password auto jika siswa kosong (server juga auto, tapi konsisten)
+    const payload = { ...formData }
+    if (payload.role === 'siswa' && !payload.password) {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%'
+      let rnd = ''; for (let i=0;i<12;i++) rnd+=chars[Math.floor(Math.random()*chars.length)]
+      payload.password = rnd
+    }
+    await onSubmit(payload)
   }
 
   const handleChange = (field: keyof CreateUserFormData) => (
@@ -161,19 +169,19 @@ export function CreateUserModal({
           <p className="text-[11px] text-gray-400">Domain: <span className="font-mono">{getSchoolEmailDomain()}</span> · ganti via <span className="font-mono">NEXT_PUBLIC_SCHOOL_EMAIL_DOMAIN</span> di .env.local</p>
         </div>
 
-        {/* Password */}
+        {/* Password — siswa Google OAuth bisa kosong (auto 12 char), guru wajib */}
         <div className="space-y-1.5">
           <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
-            Password <span className="text-red-500">*</span>
+            Password {formData.role === 'siswa' ? <span className="text-gray-400 font-medium normal-case">(opsional, auto jika kosong — untuk Google)</span> : <span className="text-red-500">*</span>}
           </label>
           <Input
             type="password"
-            placeholder="Minimal 6 karakter"
+            placeholder={formData.role === 'siswa' ? 'Kosongkan untuk auto (Google login)' : 'Minimal 6 karakter'}
             value={formData.password}
             onChange={handleChange('password')}
-            required
+            required={formData.role === 'guru'}
           />
-          <p className="text-xs text-gray-400 mt-1">Minimal 6 karakter</p>
+          <p className="text-xs text-gray-400 mt-1">{formData.role === 'siswa' ? 'Siswa login via Google @smk.belajar.id, password tidak dipakai — kosongkan saja.' : 'Minimal 6 karakter'}</p>
         </div>
 
         {/* Role */}
