@@ -1,6 +1,6 @@
 'use client'
-// LoginPage — Web (admin/guru). Kiri ilustrasi, kanan form.
-// Alur: Supabase Auth → cek profiles.role → redirect sesuai role.
+// LoginPage — Web KHUSUS GURU (admin dipisah ke /admin/login). Kiri ilustrasi, kanan form.
+// Alur: Supabase Auth → cek profiles.role === guru → /teacher/dashboard
 
 import { useState } from 'react'
 import Image from 'next/image'
@@ -56,13 +56,12 @@ export default function LoginPage() {
 
       const role = profile.role
 
-      // Navigasi penuh (hard navigation) supaya request baru membawa cookie sesi
-      // segar ke middleware (proxy.ts) — mencegah redirect-loop setelah login.
+      // Halaman ini khusus guru — admin harus via /admin/login
       if (role === 'admin') {
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.assign('/admin/dashboard')
-        return
-      } else if (role === 'guru') {
+        await supabase.auth.signOut()
+        throw new Error('Akun admin silakan login via /admin/login')
+      }
+      if (role === 'guru') {
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.assign('/teacher/dashboard')
         return
@@ -109,10 +108,10 @@ export default function LoginPage() {
             <div className="text-center space-y-2">
               <Logo src="/gambar3.png" alt="Logo Sekolah" size={64} />
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
-                Selamat Datang
+                Login Guru
               </h1>
               <p className="text-xs sm:text-sm text-gray-800">
-                Silakan masukan email dan password anda di bawah.
+                Masuk khusus guru. Admin via <a href="/admin/login" className="text-blue-600 font-bold hover:underline">/admin/login</a>
               </p>
             </div>
 
@@ -146,7 +145,7 @@ export default function LoginPage() {
                   required
                 />
                 <p className="text-xs font-semibold text-gray-500 mt-1.5 text-right" title="Hubungi admin sekolah untuk reset kata sandi">
-                  Lupa? Hubungi admin
+                  Admin? <a href="/admin/login" className="text-blue-600 font-bold hover:underline">Login Admin</a> • Lupa? Hubungi admin
                 </p>
               </div>
 

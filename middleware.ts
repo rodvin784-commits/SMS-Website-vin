@@ -89,28 +89,31 @@ export default async function middleware(request: NextRequest) {
     console.error('Proxy session error:', sessionError.message)
   }
 
-  // Jika belum login dan mencoba masuk ke halaman admin atau teacher, lempar ke login
-  if (
-    !user &&
-    (url.pathname.startsWith('/admin') ||
-      url.pathname.startsWith('/teacher'))
-  ) {
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+  // Jika belum login: admin → /admin/login, teacher → /login (pisah sesuai permintaan)
+  if (!user) {
+    if (url.pathname.startsWith('/admin') && url.pathname !== '/admin/login') {
+      url.pathname = '/admin/login'
+      return NextResponse.redirect(url)
+    }
+    if (url.pathname.startsWith('/teacher')) {
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
   }
 
-  // Role guard: user login tapi role tidak sesuai halaman -> redirect
+  // Role guard: pisah login admin vs guru
+  // Biarkan /admin/login dan /login bisa diakses semua (untuk ganti akun)
   if (user && (url.pathname.startsWith('/admin') || url.pathname.startsWith('/teacher'))) {
-    // Ambil role dari profiles via anon client (RLS allow select own)
+    if (url.pathname === '/admin/login' || url.pathname === '/login') return response
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
     const role = (profile as { role: string } | null)?.role
     if (url.pathname.startsWith('/admin') && role !== 'admin') {
       url.pathname = role === 'guru' ? '/teacher' : '/login'
       return NextResponse.redirect(url)
     }
-    if (url.pathname.startsWith('/teacher') && role !== 'guru' && role !== 'admin') {
-      // admin boleh akses teacher? blok, hanya guru
-      url.pathname = '/login'
+    if (url.pathname.startsWith('/teacher') && role !== 'guru') {
+      // admin tidak boleh masuk teacher (pisah total), guru only
+      url.pathname = role === 'admin' ? '/admin/dashboard' : '/login'
       return NextResponse.redirect(url)
     }
   }
