@@ -106,4 +106,14 @@ Siswa buka APK → langsung masuk tanpa ketik apa pun jika HP sudah login Google
 
 **Next:** tes login Google `smk.belajar.id` real (1 siswa sudah dibuat), lalu P1 audit log / export rapor jika diminta.
 
+## 12. Catatan Update APK Android (Tanpa Hapus Install)
+
+- **Sideload (link Drive/WA):** tidak perlu hapus. Install APK baru timpa langsung jadi `Update` (data login tetap) jika 3 syarat sama:
+  1. `appId` tetap `com.vin.siswa` (`capacitor.config.ts:4`)
+  2. Signing key sama (`android/app/*.jks` jangan ganti)
+  3. `versionCode` naik (`android/app/build.gradle` `2→3`) + `versionName` `1.0.1→1.0.2`
+  - Jika `versionCode` tidak naik → `App not installed`. Jika ganti keystore → wajib uninstall dulu.
+- **Play Store (aab):** update otomatis via Play Store → siswa tap `Update`.
+- **OTA (opsional Capgo/Appflow):** update web `dist/` tanpa build APK, patch 1MB auto saat buka — cocok untuk `src/screens/*`.
+
 Catatan: Jangan commit `.env.local` & jangan minta password Google siswa.
