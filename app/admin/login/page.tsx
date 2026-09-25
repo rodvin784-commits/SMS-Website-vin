@@ -55,7 +55,7 @@ export default function AdminLoginPage() {
             <div className="text-center space-y-2">
               <Logo src="/gambar3.png" alt="Logo Sekolah" size={56} />
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Login Administrator</h1>
-              <p className="text-xs sm:text-sm text-slate-600">Hanya untuk Admin. Guru silakan masuk via <a href="/login" className="text-blue-600 font-bold hover:underline">/login</a></p>
+              <p className="text-xs sm:text-sm text-slate-600">Silakan masukan email dan password administrator di bawah.</p>
             </div>
             {showError && error && <FeedbackMessage type="error" message={error} />}
             <form onSubmit={handleLogin} className="space-y-4">
@@ -67,7 +67,7 @@ export default function AdminLoginPage() {
               </div>
               <Button type="submit" loading={loading} fullWidth size="lg">{loading ? 'Memproses...' : 'Masuk sebagai Admin'}</Button>
             </form>
-            <p className="text-center text-[11px] text-slate-400">Guru? <a href="/login" className="font-bold text-blue-600 hover:underline">Login Guru di sini</a> • Siswa via APK</p>
+            <p className="text-center text-[11px] text-slate-400">SMK Bagimu Negeriku • Akses terbatas</p>
           </div>
         </div>
       </div>
