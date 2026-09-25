@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-server'
-import { guruAuth, isAssigned } from '@/lib/guru-auth'
+import { areAllAssigned, guruAuth } from '@/lib/guru-auth'
 import { kirimNotifikasiKeKelas } from '@/lib/notifikasi'
 
 // Video pembelajaran (DATABASE_CONTEXT.md #15-16):
@@ -94,6 +94,7 @@ export async function GET() {
       .select(VIDEO_SELECT)
       .eq('guru_id', auth.guruId)
       .order('created_at', { ascending: false })
+      .limit(100)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
@@ -145,13 +146,11 @@ export async function POST(request: NextRequest) {
       if (autoThumb) thumbnailUrl = autoThumb
     }
 
-    for (const kelasId of kelasIds) {
-      if (!(await isAssigned(auth.guruId, mapelId, kelasId))) {
-        return NextResponse.json(
-          { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
-          { status: 403 }
-        )
-      }
+    if (!(await areAllAssigned(auth.guruId, mapelId, kelasIds))) {
+      return NextResponse.json(
+        { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
+        { status: 403 }
+      )
     }
 
     const { data: created, error: insErr } = await getSupabaseAdmin()
@@ -281,13 +280,11 @@ export async function PUT(request: NextRequest) {
       }
       const targetMapel = String(body.mata_pelajaran_id ?? existing.mata_pelajaran_id)
       const kelasIds: string[] = body.kelas_ids.map((kelas_id: string) => kelas_id)
-      for (const kelasId of kelasIds) {
-        if (!(await isAssigned(auth.guruId, targetMapel, kelasId))) {
-          return NextResponse.json(
-            { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
-            { status: 403 }
-          )
-        }
+      if (!(await areAllAssigned(auth.guruId, targetMapel, kelasIds))) {
+        return NextResponse.json(
+          { error: 'Terdapat kelas yang tidak Anda ampu untuk mapel ini.' },
+          { status: 403 }
+        )
       }
       const { error: delErr } = await supabase.from('video_kelas').delete().eq('video_id', id)
       if (delErr) return NextResponse.json({ error: delErr.message }, { status: 400 })

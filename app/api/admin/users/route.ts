@@ -40,6 +40,11 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const role = searchParams.get('role')
+    // Pagination guard: default 100, max 200 untuk cegah payload 10k
+    const limitParam = searchParams.get('limit')
+    const offsetParam = searchParams.get('offset')
+    const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 100, 1), 200) : null
+    const offset = offsetParam ? Math.max(parseInt(offsetParam, 10) || 0, 0) : null
 
     let query = supabaseAdmin
       .from('profiles')
@@ -53,6 +58,7 @@ export async function GET(request: NextRequest) {
       }
       query = query.eq('role', role)
     }
+    if (limit !== null) query = query.range(offset ?? 0, (offset ?? 0) + limit - 1)
 
     const { data, error } = await query
 
@@ -136,11 +142,21 @@ export async function POST(request: Request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin()
-    const { email, password, nama_lengkap, role, kelas_id, nis, nip } = await request.json()
+    let { email, password, nama_lengkap, role, kelas_id, nis, nip } = await request.json()
 
-    // Validasi input
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email dan password wajib diisi' }, { status: 400 })
+    // Validasi input — siswa Google OAuth: password opsional (auto-random)
+    if (!email) {
+      return NextResponse.json({ error: 'Email wajib diisi' }, { status: 400 })
+    }
+    if (role === 'siswa' && (!password || String(password).trim() === '')) {
+      // auto 12 char untuk siswa (dipakai hanya fallback, login utama via Google @smk.belajar.id)
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%'
+      let rnd = ''
+      for (let i = 0; i < 12; i++) rnd += chars[Math.floor(Math.random() * chars.length)]
+      password = rnd
+    }
+    if (!password || String(password).length < 6) {
+      return NextResponse.json({ error: 'Password minimal 6 karakter (kosongkan untuk auto siswa Google)' }, { status: 400 })
     }
 
     if (!nama_lengkap || String(nama_lengkap).trim() === '') {
@@ -149,10 +165,6 @@ export async function POST(request: Request) {
 
     if (!isRole(role)) {
       return NextResponse.json({ error: 'Role harus guru atau siswa' }, { status: 400 })
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Password minimal 6 karakter' }, { status: 400 })
     }
 
     const nama = String(nama_lengkap).trim()

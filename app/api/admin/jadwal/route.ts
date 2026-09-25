@@ -54,7 +54,16 @@ export async function GET(request: NextRequest) {
         mata_pelajaran: { nama: string; kode: string } | { nama: string; kode: string }[] | null
       }
 
-      const penugasanQuery = supabaseAdmin
+      // Jika tidak ada kelas aktif -> jangan bocorkan semua penugasan, return kosong
+      if (activeKelasIds.length === 0) {
+        return NextResponse.json({
+          kelas: activeKelas,
+          penugasan: [],
+          hari: HARI_VALID.map((h) => ({ value: h, label: h })),
+        })
+      }
+
+      const { data: penugasan, error: pError } = await supabaseAdmin
         .from('guru_kelas')
         .select(`
           id,
@@ -65,13 +74,8 @@ export async function GET(request: NextRequest) {
           guru(nama_lengkap),
           mata_pelajaran(nama, kode)
         `)
-
-      let query = penugasanQuery
-      if (activeKelasIds.length > 0) {
-        query = penugasanQuery.in('kelas_id', activeKelasIds)
-      }
-
-      const { data: penugasan, error: pError } = await query.order('created_at', { ascending: true })
+        .in('kelas_id', activeKelasIds)
+        .order('created_at', { ascending: true })
 
       if (pError) {
         return NextResponse.json({ error: pError.message }, { status: 400 })
@@ -349,10 +353,16 @@ export async function PUT(request: Request) {
         tahun_ajaran: string | null
       }
       const p = penugasan as unknown as PenugasanRow
+      if (!p.tahun_ajaran) {
+        return NextResponse.json(
+          { error: 'Penugasan baru belum punya tahun ajaran. Atur tahun ajaran di halaman Mata Pelajaran terlebih dahulu.' },
+          { status: 400 }
+        )
+      }
       guruId = p.guru_id
       mapelId = p.mata_pelajaran_id
       kelasId = p.kelas_id
-      tahunAjaran = p.tahun_ajaran ?? tahunAjaran
+      tahunAjaran = p.tahun_ajaran
     }
 
     // Cek bentrok di kelas yang sama (waktu tumpang tindih pada hari yang sama), kecuali baris ini
@@ -435,6 +445,11 @@ export async function DELETE(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'ID jadwal wajib diisi' }, { status: 400 })
     }
+
+    // Verifikasi ada sebelum hapus agar tidak misleading 200
+    const { data: exists, error: exErr } = await supabaseAdmin.from('jadwal').select('id').eq('id', id).maybeSingle()
+    if (exErr) return NextResponse.json({ error: exErr.message }, { status: 400 })
+    if (!exists) return NextResponse.json({ error: 'Jadwal tidak ditemukan' }, { status: 404 })
 
     const { error } = await supabaseAdmin.from('jadwal').delete().eq('id', id)
 

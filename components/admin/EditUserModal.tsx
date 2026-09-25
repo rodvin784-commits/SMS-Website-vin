@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
 import { useKelasOptions } from '@/hooks/useKelasOptions'
+import { validateUserEdit } from '@/lib/user-validation'
 import type { Profile } from '@/components/admin/UserTable'
 
 interface EditUserFormData {
@@ -70,10 +71,8 @@ export function EditUserModal({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!user) return
-    if (newPassword && newPassword.length < 6) {
-      setLocalError('Password baru minimal 6 karakter')
-      return
-    }
+    const err = validateUserEdit({ nama_lengkap: formData.nama_lengkap, email: formData.email, password: newPassword || undefined })
+    if (err) { setLocalError(err); return }
     setLocalError(null)
     await onSubmit({ ...formData, password: newPassword || undefined, id: user.id })
   }

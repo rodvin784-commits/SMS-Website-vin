@@ -1,4 +1,5 @@
 'use client'
+// StatCard — Kartu angka ringkas (dipakai admin & guru dashboard).
 
 import type { LucideIcon } from 'lucide-react'
 

@@ -470,3 +470,22 @@ export async function getPengumpulanSiswa(siswaId: string, tugasId: string) {
   }
   return data
 }
+
+// Batch: semua pengumpulan siswa untuk daftar tugas (1 query, bukan N)
+export async function getPengumpulanBatch(siswaId: string, tugasIds: string[]) {
+  if (tugasIds.length === 0) return new Map<string, NonNullable<Awaited<ReturnType<typeof getPengumpulanSiswa>>>>()
+  const { data, error } = await getSupabaseAdmin()
+    .from('pengumpulan_tugas')
+    .select('id, tugas_id, siswa_id, file_url, nama_file, foto_urls, jawaban_teks, catatan, status, submitted_at, updated_at, nilai, feedback, dinilai_at')
+    .eq('siswa_id', siswaId)
+    .in('tugas_id', tugasIds)
+  if (error) {
+    console.error('Gagal memuat pengumpulan batch:', error.message)
+    return new Map()
+  }
+  const map = new Map<string, NonNullable<Awaited<ReturnType<typeof getPengumpulanSiswa>>>>()
+  for (const row of (data ?? []) as unknown as NonNullable<Awaited<ReturnType<typeof getPengumpulanSiswa>>>[]) {
+    map.set((row as { tugas_id: string }).tugas_id, row)
+  }
+  return map
+}

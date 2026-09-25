@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UserPlus, Users, Search, Filter, RefreshCw } from 'lucide-react'
+import { UserPlus, Users, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react'
 import { FeedbackMessage, Button } from '@/components/ui'
 import { useFeedback } from '@/hooks/useFeedback'
-import { UserTable, CreateUserModal, EditUserModal } from '@/components/admin'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import { validateUserCreate, validateUserEdit } from '@/lib/user-validation'
+import { UserTable, CreateUserModal, EditUserModal, BulkImportModal } from '@/components/admin'
 import type { Profile } from '@/components/admin/UserTable'
 
 type RoleFilter = 'guru' | 'siswa' | 'semua'
@@ -56,8 +58,12 @@ export default function AdminUsersPage() {
 
   // Filter State
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearch = useDebouncedValue(searchQuery, 300)
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('semua')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  // Pagination client-side (cukup untuk 200-500 user, server guard limit 200)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
 
   // Feedback State (auto-dismiss)
   const { feedback, showFeedback } = useFeedback()
@@ -65,57 +71,33 @@ export default function AdminUsersPage() {
   // Modal States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isBulkOpen, setIsBulkOpen] = useState(false)
 
   // Form State
   const [submitting, setSubmitting] = useState(false)
   const [editingUser, setEditingUser] = useState<Profile | null>(null)
 
-  // Fetch stats helper
-  const fetchStats = async (currentRole: string): Promise<UserStats> => {
-    try {
-      const allUsers = await loadUsersFromApi('semua')
-      const nonAdminUsers = allUsers.filter(u => u.role !== 'admin')
-      const guruUsers = nonAdminUsers.filter(u => u.role === 'guru')
-      const siswaUsers = nonAdminUsers.filter(u => u.role === 'siswa')
-      const activeUsers = nonAdminUsers.filter(u => u.status !== false)
-      const inactiveUsers = nonAdminUsers.filter(u => u.status === false)
-
-      let guruCount = guruUsers.length
-      let siswaCount = siswaUsers.length
-      if (currentRole === 'guru') {
-        guruCount = guruUsers.length
-        siswaCount = 0
-      } else if (currentRole === 'siswa') {
-        guruCount = 0
-        siswaCount = siswaUsers.length
-      }
-
-      return {
-        total: nonAdminUsers.length,
-        guru: guruCount,
-        siswa: siswaCount,
-        active: activeUsers.length,
-        inactive: inactiveUsers.length,
-      }
-    } catch {
-      return { total: 0, guru: 0, siswa: 0, active: 0, inactive: 0 }
+  // Stats global (selalu dari semua user, bukan yang ter-filter) agar card TOTAL/GURU/SISWA tidak jadi 0 saat filter aktif
+  const computeStats = (list: Profile[]): UserStats => {
+    const nonAdmin = list.filter((u) => u.role !== 'admin')
+    return {
+      total: nonAdmin.length,
+      guru: nonAdmin.filter((u) => u.role === 'guru').length,
+      siswa: nonAdmin.filter((u) => u.role === 'siswa').length,
+      active: nonAdmin.filter((u) => u.status !== false).length,
+      inactive: nonAdmin.filter((u) => u.status === false).length,
     }
   }
 
-  // Load users & stats
+  // Load users — single fetch 'semua' lalu filter role di client agar instant & stats global benar
   useEffect(() => {
     let cancelled = false
-
     const loadData = async () => {
       try {
-        const [usersData, statsData] = await Promise.all([
-          loadUsersFromApi(roleFilter),
-          fetchStats(roleFilter),
-        ])
-
+        const allData = await loadUsersFromApi('semua')
         if (!cancelled) {
-          setUsers(usersData)
-          setStats(statsData)
+          setUsers(allData)
+          setStats(computeStats(allData))
         }
       } catch (err) {
         console.error('Error loading data:', err)
@@ -127,28 +109,26 @@ export default function AdminUsersPage() {
         if (!cancelled) setLoading(false)
       }
     }
-
     loadData()
-    return () => { cancelled = true }
-  }, [roleFilter, refreshKey])
+    return () => {
+      cancelled = true
+    }
+  }, [refreshKey])
 
-  // Refresh data
+  // Refresh — fetch semua lagi
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
     try {
-      const [usersData, statsData] = await Promise.all([
-        loadUsersFromApi(roleFilter),
-        fetchStats(roleFilter),
-      ])
-      setUsers(usersData)
-      setStats(statsData)
+      const allData = await loadUsersFromApi('semua')
+      setUsers(allData)
+      setStats(computeStats(allData))
       showFeedback('success', 'Data berhasil diperbarui')
     } catch (err) {
       showFeedback('error', getErrorMessage(err))
     } finally {
       setRefreshing(false)
     }
-  }, [roleFilter, showFeedback])
+  }, [showFeedback])
 
   const handleCreateUser = useCallback(async (data: {
     nama_lengkap: string
@@ -159,18 +139,8 @@ export default function AdminUsersPage() {
     nip?: string
     nis?: string
   }) => {
-    if (!data.email || !data.password || !data.nama_lengkap) {
-      showFeedback('error', 'Semua field wajib diisi!')
-      return
-    }
-    if (data.password.length < 6) {
-      showFeedback('error', 'Password minimal 6 karakter!')
-      return
-    }
-    if (data.role === 'siswa' && !data.nis) {
-      showFeedback('error', 'NIS wajib diisi untuk akun siswa!')
-      return
-    }
+    const v = validateUserCreate({ nama_lengkap: data.nama_lengkap, email: data.email, password: data.password, role: data.role, nis: data.nis, kelas_id: data.kelas_id })
+    if (v) { showFeedback('error', v); return }
 
     setSubmitting(true)
     try {
@@ -218,10 +188,8 @@ export default function AdminUsersPage() {
       showFeedback('error', 'Data pengguna tidak valid!')
       return
     }
-    if (!data.nama_lengkap || !data.email) {
-      showFeedback('error', 'Nama dan email wajib diisi!')
-      return
-    }
+    const v = validateUserEdit({ nama_lengkap: data.nama_lengkap, email: data.email, password: data.password })
+    if (v) { showFeedback('error', v); return }
 
     setSubmitting(true)
     try {
@@ -270,29 +238,26 @@ export default function AdminUsersPage() {
     }
   }, [showFeedback])
 
-  // Filter users by search and status - EXCLUDE ADMIN ACCOUNTS
+  // Filter client-side instant (role + search + status) — pakai debouncedSearch agar tidak re-filter tiap keystroke
   const filteredUsers = useMemo(() => {
-    const search = searchQuery.toLowerCase()
-
+    const search = debouncedSearch.toLowerCase().trim()
     return users
-      .filter((user) => user.role !== 'admin') // Exclude admin from management
+      .filter((user) => user.role !== 'admin')
       .filter((user) => {
-        const matchesSearch = user.nama_lengkap?.toLowerCase().includes(search) ||
+        if (roleFilter !== 'semua' && user.role !== roleFilter) return false
+        const matchesSearch =
+          !search ||
+          user.nama_lengkap?.toLowerCase().includes(search) ||
           user.email?.toLowerCase().includes(search) ||
           user.nip?.toLowerCase().includes(search) ||
-          user.nis?.toLowerCase().includes(search)
-
-        // Status filter
-        let matchesStatus = true
-        if (statusFilter === 'active') {
-          matchesStatus = user.status !== false
-        } else if (statusFilter === 'inactive') {
-          matchesStatus = user.status === false
-        }
-
-        return matchesSearch && matchesStatus
+          user.nis?.toLowerCase().includes(search) ||
+          (user as unknown as { kelas_nama?: string | null }).kelas_nama?.toLowerCase().includes(search)
+        if (!matchesSearch) return false
+        if (statusFilter === 'active') return user.status !== false
+        if (statusFilter === 'inactive') return user.status === false
+        return true
       })
-  }, [users, searchQuery, statusFilter])
+  }, [users, debouncedSearch, statusFilter, roleFilter])
 
   // Count users by status for filtered results
   const filteredStats = useMemo(() => {
@@ -303,6 +268,16 @@ export default function AdminUsersPage() {
       inactive: filtered.filter(u => u.status === false).length,
     }
   }, [filteredUsers])
+
+  // Reset page saat filter/search berubah
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, roleFilter, statusFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize))
+  const pagedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredUsers.slice(start, start + pageSize)
+  }, [filteredUsers, currentPage])
 
   return (
     <div className="space-y-6">
@@ -330,6 +305,10 @@ export default function AdminUsersPage() {
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
+          </Button>
+          <Button variant="secondary" onClick={() => setIsBulkOpen(true)} size="lg">
+            <FileSpreadsheet className="h-4 w-4" />
+            Import CSV
           </Button>
           <Button onClick={() => setIsCreateModalOpen(true)} size="lg">
             <UserPlus className="h-4 w-4" />
@@ -416,46 +395,30 @@ export default function AdminUsersPage() {
             />
           </div>
 
-          {/* Filters */}
-          <div className="flex items-center gap-3">
+          {/* Filters — minimalis profesional: role & status tidak saling reset, aktif lebih kontras */}
+          <div className="flex items-center gap-3 flex-wrap">
             {/* Role Filter */}
-            <div className="flex items-center space-x-1 bg-gray-100 rounded-xl p-1">
-              {(['guru', 'siswa', 'semua'] as const).map((role) => (
+            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+              {(['semua', 'guru', 'siswa'] as const).map((role) => (
                 <button
                   key={role}
-                  onClick={() => {
-                    setRoleFilter(role)
-                    setStatusFilter('all')
-                  }}
-                  className={`
-                    px-4 py-2 text-xs font-bold rounded-lg transition-all capitalize
-                    ${roleFilter === role
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }
-                  `}
+                  aria-pressed={roleFilter === role}
+                  onClick={() => setRoleFilter(role)}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all capitalize ${roleFilter === role ? 'bg-white text-blue-600 shadow-sm ring-1 ring-blue-100' : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'}`}
                 >
                   {role === 'semua' ? 'Semua' : role === 'guru' ? 'Guru' : 'Siswa'}
                 </button>
               ))}
             </div>
-
+            <span className="hidden sm:block h-6 w-px bg-gray-200" />
             {/* Status Filter */}
-            <div className="flex items-center space-x-1 bg-gray-100 rounded-xl p-1">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
               {(['all', 'active', 'inactive'] as const).map((status) => (
                 <button
                   key={status}
-                  onClick={() => {
-                    setStatusFilter(status)
-                    setRoleFilter(roleFilter) // Keep role filter
-                  }}
-                  className={`
-                    px-4 py-2 text-xs font-bold rounded-lg transition-all
-                    ${statusFilter === status
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }
-                  `}
+                  aria-pressed={statusFilter === status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${statusFilter === status ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-emerald-100' : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'}`}
                 >
                   {status === 'all' ? 'Semua Status' : status === 'active' ? 'Aktif' : 'Nonaktif'}
                 </button>
@@ -471,9 +434,9 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* User Table */}
+      {/* User Table (paginated 20) */}
       <UserTable
-        users={filteredUsers}
+        users={pagedUsers}
         loading={loading}
         onEdit={(user) => {
           setEditingUser(user)
@@ -482,6 +445,19 @@ export default function AdminUsersPage() {
         onDelete={handleDeleteUser}
         showCount={true}
       />
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white rounded-xl p-3 border border-gray-100">
+          <span className="text-xs text-gray-500">Halaman {currentPage} / {totalPages} · {filteredStats.total} hasil</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>
+              <ChevronLeft className="h-4 w-4" /> Prev
+            </Button>
+            <Button variant="secondary" size="sm" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>
+              Next <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Create User Modal */}
       <CreateUserModal
@@ -502,6 +478,9 @@ export default function AdminUsersPage() {
         onSubmit={handleUpdateUser}
         submitting={submitting}
       />
+
+      {/* Bulk Import CSV */}
+      <BulkImportModal isOpen={isBulkOpen} onClose={() => setIsBulkOpen(false)} onDone={() => setRefreshKey(k => k + 1)} />
     </div>
   )
 }

@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Plus, Pencil, Trash2, GraduationCap, Filter, Search, CheckCircle2, Building2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, GraduationCap, Filter, Search, CheckCircle2, Building2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
-import { useFeedback } from '@/hooks/useFeedback'
+import { useAdminMutate } from '@/hooks/useAdminMutate'
 
 interface JurusanData {
   id: string
@@ -44,6 +45,9 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
   const [data, setData] = useState<KelasData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearch = useDebouncedValue(searchQuery, 300)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [tingkatFilter, setTingkatFilter] = useState<string>('all')
   // Filter jurusan via URL (dari badge di halaman Jurusan) dan dropdown
@@ -54,10 +58,10 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<KelasData | null>(null)
-  const [submitting, setSubmitting] = useState(false)
 
-  // Feedback (auto-dismiss)
-  const { feedback, showFeedback, setFeedback } = useFeedback()
+  // Refresh trigger: defined before mutate so hook can use it
+  // (refreshData didefinisikan di atas useAdminMutate)
+  // Feedback + mutate DRY akan didefinisikan setelah refreshData
 
   // Tahun ajaran options (otomatis generate)
   const tahunAjaranOptions: string[] = useMemo(() => {
@@ -72,6 +76,8 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
     setRefreshKey((k) => k + 1)
     if (onDataChanged) onDataChanged()
   }, [onDataChanged])
+
+  const { feedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/kelas', refreshData)
 
   // Load data on mount, saat filter berubah, atau saat refresh diminta
   useEffect(() => {
@@ -129,109 +135,50 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
     }
   }, [])
 
-  // Filter data
-  const filteredData = data
-    .filter((item) => {
-      const jurusanMatch = searchQuery === '' || (item.jurusan && item.jurusan.nama.toLowerCase().includes(searchQuery.toLowerCase()))
-      const kelasMatch =
-        item.nama_kelas.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.tahun_ajaran.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.tingkat.toString().includes(searchQuery)
-      const matchesSearch = jurusanMatch || kelasMatch
-      let matchesStatus = true
-      if (statusFilter === 'active') matchesStatus = item.status === true
-      if (statusFilter === 'inactive') matchesStatus = item.status === false
-      let matchesTingkat = true
-      if (tingkatFilter !== 'all' && tingkatFilter !== '') {
-        matchesTingkat = item.tingkat.toString() === tingkatFilter
-      }
-      let matchesJurusan = true
-      if (jurusanFilter !== 'all') {
-        matchesJurusan = item.jurusan_id === jurusanFilter
-      }
-      return matchesSearch && matchesStatus && matchesTingkat && matchesJurusan
-    })
+  // Filter data: server sudah filter status/tingkat/jurusan, client hanya search teks (hindari double filter)
+  const filteredData = data.filter((item) => {
+    if (debouncedSearch === '') return true
+    const q = debouncedSearch.toLowerCase()
+    return (
+      item.nama_kelas.toLowerCase().includes(q) ||
+      item.tahun_ajaran.toLowerCase().includes(q) ||
+      item.tingkat.toString().includes(q) ||
+      (item.jurusan?.nama.toLowerCase().includes(q) ?? false) ||
+      (item.jurusan?.kode.toLowerCase().includes(q) ?? false)
+    )
+  })
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, statusFilter, tingkatFilter, jurusanFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize))
+  const pagedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredData.slice(start, start + pageSize)
+  }, [filteredData, currentPage])
 
-  // Create handler
+  // Create handler — DRY via mutate
   const handleCreate = useCallback(async (formData: KelasFormData) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/kelas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menambahkan kelas')
-      }
-
-      showFeedback('success', 'Kelas berhasil ditambahkan!')
+      await mutate('POST', formData)
       setIsCreateModalOpen(false)
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate])
 
   // Update handler
   const handleUpdate = useCallback(async (id: string, formData: Partial<KelasFormData> & { status?: boolean }) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/kelas', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...formData }),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal memperbarui kelas')
-      }
-
-      showFeedback('success', 'Kelas berhasil diperbarui!')
+      await mutate('PUT', { id, ...formData })
       setIsEditModalOpen(false)
       setEditingItem(null)
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate])
 
   // Delete handler
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm('Apakah Anda yakin ingin menghapus kelas ini? Tindakan ini tidak dapat dibatalkan.')) return
-
-    setFeedback(null)
-
     try {
-      const res = await fetch(`/api/admin/kelas?id=${id}`, {
-        method: 'DELETE',
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menghapus kelas')
-      }
-
-      showFeedback('success', 'Kelas berhasil dihapus!')
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    }
-  }, [refreshData, showFeedback, setFeedback])
+      await mutate('DELETE', undefined, `?id=${id}`)
+    } catch {}
+  }, [mutate])
 
   // Generate tingkat options (10-12)
   const tingkatOptions = useMemo((): { value: string; label: string }[] => {
@@ -406,7 +353,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredData.map((item) => (
+                {pagedData.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group">
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
@@ -486,6 +433,15 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      {filteredData.length > 20 && (
+        <div className="flex items-center justify-between bg-white rounded-xl p-3 border border-gray-100">
+          <span className="text-xs text-gray-500">Halaman {currentPage} / {totalPages} · {filteredData.length} hasil</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}><ChevronLeft className="h-4 w-4" /> Prev</Button>
+            <Button variant="secondary" size="sm" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>Next <ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
       )}

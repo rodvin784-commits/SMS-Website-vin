@@ -96,7 +96,7 @@ export function NilaiManager() {
 
   const selected = assignments.find((a) => a.id === selectedId)
 
-  // Muat roster + nilai saat penugasan/semester berubah
+  // Muat roster + nilai saat penugasan/semester berubah (debounce 400ms untuk tahunAjaran ketik vs pilih)
   useEffect(() => {
     const asg = assignments.find((a) => a.id === selectedId)
     if (!asg) return
@@ -105,35 +105,37 @@ export function NilaiManager() {
     const kelasId = asg.kelas_id
     const taDefault = asg.tahun_ajaran || ''
 
-    async function init() {
-      setLoadingRoster(true)
-      try {
-        const params = new URLSearchParams({
-          mata_pelajaran_id: mapelId,
-          kelas_id: kelasId,
-          semester,
-          tahun_ajaran: tahunAjaran || taDefault,
-        })
-        const res = await fetch(`/api/teacher/nilai?${params.toString()}`)
-        const data = await res.json().catch(() => null)
-        if (data?.siswa) {
-          const list = data.siswa as NilaiSiswa[]
-          setSiswa(list)
-          setStatusMsg(null)
-        } else {
+    const timer = setTimeout(() => {
+      async function init() {
+        setLoadingRoster(true)
+        try {
+          const params = new URLSearchParams({
+            mata_pelajaran_id: mapelId,
+            kelas_id: kelasId,
+            semester,
+            tahun_ajaran: tahunAjaran || taDefault,
+          })
+          const res = await fetch(`/api/teacher/nilai?${params.toString()}`)
+          const data = await res.json().catch(() => null)
+          if (data?.siswa) {
+            const list = data.siswa as NilaiSiswa[]
+            setSiswa(list)
+            setStatusMsg(null)
+          } else {
+            setSiswa([])
+            setStatusMsg({ type: 'error', text: data?.error ?? 'Gagal memuat nilai.' })
+          }
+        } catch (err) {
+          console.error('Gagal memuat nilai:', err)
           setSiswa([])
-          setStatusMsg({ type: 'error', text: data?.error ?? 'Gagal memuat nilai.' })
+          setStatusMsg({ type: 'error', text: 'Terjadi kesalahan saat memuat nilai.' })
+        } finally {
+          setLoadingRoster(false)
         }
-      } catch (err) {
-        console.error('Gagal memuat nilai:', err)
-        setSiswa([])
-        setStatusMsg({ type: 'error', text: 'Terjadi kesalahan saat memuat nilai.' })
-      } finally {
-        setLoadingRoster(false)
       }
-    }
-
-    void init()
+      void init()
+    }, 400)
+    return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, semester, tahunAjaran])
 

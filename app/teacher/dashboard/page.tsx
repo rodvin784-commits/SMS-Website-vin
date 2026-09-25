@@ -1,13 +1,12 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatCard } from '@/components/ui/StatCard'
 import { teacherNavItems } from '@/lib/teacher-nav'
 import { BookOpen, Calendar, ClipboardCheck, FileText, GraduationCap, UserCheck } from 'lucide-react'
 import { SubjectGroup } from '@/components/teacher'
+import { useTeacherAuth } from '@/hooks/useTeacherAuth'
 
 type GuruAssignment = {
   id: string
@@ -37,9 +36,7 @@ const HARI_KODE: Record<string, number> = {
 }
 
 export default function TeacherDashboard() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [teacherName, setTeacherName] = useState('Guru')
+  const { loading, teacherName, handleLogout } = useTeacherAuth()
   const [assignments, setAssignments] = useState<GuruAssignment[]>([])
   const [jadwalHariIni, setJadwalHariIni] = useState<string | number>('--')
   const [tugasAktif, setTugasAktif] = useState<string | number>('--')
@@ -51,91 +48,58 @@ export default function TeacherDashboard() {
   } | null>(null)
 
   useEffect(() => {
+    if (loading) return
     let cancelled = false
 
-    async function checkTeacherSession() {
+    async function loadDashboardData() {
+      // Penugasan + wali kelas (opsional)
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-
-        if (sessionError || !session) {
-          router.replace('/login')
-          return
-        }
-
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('nama_lengkap, role, status')
-          .eq('id', session.user.id)
-          .maybeSingle()
-
-        if (profileError || !profile || profile.status === false || profile.role !== 'guru') {
-          await supabase.auth.signOut()
-          router.replace('/login')
-          return
-        }
-
-        if (!cancelled) {
-          setTeacherName(profile.nama_lengkap || 'Guru')
-          setLoading(false)
-        }
-
-        // Penugasan + wali kelas (opsional)
-        try {
-          const res = await fetch('/api/teacher/mengajar')
-          if (res.ok && !cancelled) {
-            const data = await res.json().catch(() => null)
-            setAssignments(data?.assignments ?? [])
-            setWaliKelas(data?.wali_kelas ?? null)
-          }
-        } catch (err) {
-          console.error('Gagal memuat penugasan mengajar:', err)
-        }
-
-        // Jadwal hari ini
-        try {
-          const res = await fetch('/api/teacher/jadwal')
-          if (res.ok && !cancelled) {
-            const data = await res.json().catch(() => null)
-            const todayIndex = new Date().getDay() // 0=Minggu..6=Sabtu
-            const count = ((data?.jadwal ?? []) as { hari: string }[]).filter(
-              (e) => HARI_KODE[e.hari] === todayIndex
-            ).length
-            setJadwalHariIni(count)
-          }
-        } catch (err) {
-          console.error('Gagal memuat jadwal:', err)
-        }
-
-        // Tugas aktif (published) milik guru
-        try {
-          const res = await fetch('/api/teacher/tugas')
-          if (res.ok && !cancelled) {
-            const data = await res.json().catch(() => null)
-            const count = ((data?.tugas ?? []) as { status: string }[]).filter(
-              (t) => t.status === 'published'
-            ).length
-            setTugasAktif(count)
-          }
-        } catch (err) {
-          console.error('Gagal memuat tugas:', err)
+        const res = await fetch('/api/teacher/mengajar')
+        if (res.ok && !cancelled) {
+          const data = await res.json().catch(() => null)
+          setAssignments(data?.assignments ?? [])
+          setWaliKelas(data?.wali_kelas ?? null)
         }
       } catch (err) {
-        console.error('Auth check failed:', err)
-        router.replace('/login')
+        console.error('Gagal memuat penugasan mengajar:', err)
+      }
+
+      // Jadwal hari ini
+      try {
+        const res = await fetch('/api/teacher/jadwal')
+        if (res.ok && !cancelled) {
+          const data = await res.json().catch(() => null)
+          const todayIndex = new Date().getDay() // 0=Minggu..6=Sabtu
+          const count = ((data?.jadwal ?? []) as { hari: string }[]).filter(
+            (e) => HARI_KODE[e.hari] === todayIndex
+          ).length
+          setJadwalHariIni(count)
+        }
+      } catch (err) {
+        console.error('Gagal memuat jadwal:', err)
+      }
+
+      // Tugas aktif (published) milik guru
+      try {
+        const res = await fetch('/api/teacher/tugas')
+        if (res.ok && !cancelled) {
+          const data = await res.json().catch(() => null)
+          const count = ((data?.tugas ?? []) as { status: string }[]).filter(
+            (t) => t.status === 'published'
+          ).length
+          setTugasAktif(count)
+        }
+      } catch (err) {
+        console.error('Gagal memuat tugas:', err)
       }
     }
 
-    checkTeacherSession()
+    void loadDashboardData()
 
     return () => {
       cancelled = true
     }
-  }, [router])
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.replace('/login')
-  }
+  }, [loading])
 
   // Kelompokkan penugasan per mata pelajaran
   const mapelGroups = useMemo(() => {

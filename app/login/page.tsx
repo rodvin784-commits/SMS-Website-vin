@@ -1,9 +1,12 @@
 'use client'
+// LoginPage — Web KHUSUS GURU (admin dipisah ke /admin/login). Kiri ilustrasi, kanan form.
+// Alur: Supabase Auth → cek profiles.role === guru → /teacher/dashboard
 
 import { useState } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { Logo, IconInput, Button, FeedbackMessage } from '@/components/ui'
+import { getRateLimitState, recordFail, clearRateLimit, formatRemaining } from '@/lib/login-rate-limit'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -14,6 +17,13 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    const rl = getRateLimitState(email, 'guru')
+    if (rl.blocked) {
+      setError(`Terlalu banyak percobaan. Coba lagi dalam ${formatRemaining(rl.remainingMs)} (5x/15 menit).`)
+      setShowError(true)
+      console.warn('[guru-login] rate-limited', { email, fails: rl.fails })
+      return
+    }
     setLoading(true)
     setError('')
     setShowError(false)
@@ -54,13 +64,13 @@ export default function LoginPage() {
 
       const role = profile.role
 
-      // Navigasi penuh (hard navigation) supaya request baru membawa cookie sesi
-      // segar ke middleware (proxy.ts) — mencegah redirect-loop setelah login.
+      // Halaman ini khusus guru — admin harus via /admin/login
       if (role === 'admin') {
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.assign('/admin/dashboard')
-        return
-      } else if (role === 'guru') {
+        await supabase.auth.signOut()
+        throw new Error('Akun admin silakan login via /admin/login')
+      }
+      if (role === 'guru') {
+        clearRateLimit(email, 'guru')
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.assign('/teacher/dashboard')
         return
@@ -77,6 +87,8 @@ export default function LoginPage() {
       }
 
     } catch (err) {
+      recordFail(email, 'guru')
+      console.warn('[guru-login] failed', { email, error: err instanceof Error ? err.message : String(err) })
       const message = err instanceof Error ? err.message : 'Terjadi kesalahan sistem.'
       setError(message)
       setShowError(true)
@@ -107,10 +119,10 @@ export default function LoginPage() {
             <div className="text-center space-y-2">
               <Logo src="/gambar3.png" alt="Logo Sekolah" size={64} />
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
-                Selamat Datang
+                Login Guru
               </h1>
               <p className="text-xs sm:text-sm text-gray-800">
-                Silakan masukan email dan password anda di bawah.
+                Silakan masukan email dan password guru anda di bawah.
               </p>
             </div>
 
@@ -133,14 +145,9 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
-                    Kata Sandi
-                  </label>
-                  <a href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline">
-                    Lupa Kata Sandi?
-                  </a>
-                </div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+                  Kata Sandi
+                </label>
                 <IconInput
                   type="password"
                   placeholder="Masukkan kata sandi"
@@ -148,6 +155,9 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
+                <p className="text-xs font-semibold text-gray-500 mt-1.5 text-right" title="Hubungi admin sekolah untuk reset kata sandi">
+                  Lupa? Hubungi admin
+                </p>
               </div>
 
               <Button type="submit" loading={loading} fullWidth size="lg">

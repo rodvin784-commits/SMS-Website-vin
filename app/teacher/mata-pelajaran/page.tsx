@@ -1,11 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { teacherNavItems } from '@/lib/teacher-nav'
 import { BookOpen } from 'lucide-react'
+import { useTeacherAuth } from '@/hooks/useTeacherAuth'
 
 type GuruAssignment = {
   id: string
@@ -26,66 +25,31 @@ type MapelGroup = {
 }
 
 export default function TeacherMapelPage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [teacherName, setTeacherName] = useState('Guru')
+  const { loading, teacherName, handleLogout } = useTeacherAuth()
   const [assignments, setAssignments] = useState<GuruAssignment[]>([])
 
   useEffect(() => {
+    if (loading) return
     let cancelled = false
 
-    async function checkTeacherSession() {
+    async function loadAssignments() {
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-
-        if (sessionError || !session) {
-          router.replace('/login')
-          return
-        }
-
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('nama_lengkap, role, status')
-          .eq('id', session.user.id)
-          .maybeSingle()
-
-        if (profileError || !profile || profile.status === false || profile.role !== 'guru') {
-          await supabase.auth.signOut()
-          router.replace('/login')
-          return
-        }
-
-        if (!cancelled) {
-          setTeacherName(profile.nama_lengkap || 'Guru')
-          setLoading(false)
-        }
-
-        try {
-          const res = await fetch('/api/teacher/mengajar')
-          if (res.ok && !cancelled) {
-            const data = await res.json().catch(() => null)
-            setAssignments(data?.assignments ?? [])
-          }
-        } catch (err) {
-          console.error('Gagal memuat penugasan mengajar:', err)
+        const res = await fetch('/api/teacher/mengajar')
+        if (res.ok && !cancelled) {
+          const data = await res.json().catch(() => null)
+          setAssignments(data?.assignments ?? [])
         }
       } catch (err) {
-        console.error('Auth check failed:', err)
-        router.replace('/login')
+        console.error('Gagal memuat penugasan mengajar:', err)
       }
     }
 
-    checkTeacherSession()
+    void loadAssignments()
 
     return () => {
       cancelled = true
     }
-  }, [router])
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.replace('/login')
-  }
+  }, [loading])
 
   const mapelGroups = useMemo(() => {
     const groups = new Map<string, MapelGroup>()

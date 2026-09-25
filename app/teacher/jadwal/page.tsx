@@ -1,63 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { teacherNavItems } from '@/lib/teacher-nav'
 import { BookOpen } from 'lucide-react'
 import { JadwalMengajar } from '@/components/teacher'
+import { useTeacherAuth } from '@/hooks/useTeacherAuth'
 
 export default function TeacherJadwalPage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [teacherName, setTeacherName] = useState('Guru')
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function checkTeacherSession() {
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-
-        if (sessionError || !session) {
-          router.replace('/login')
-          return
-        }
-
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('nama_lengkap, role, status')
-          .eq('id', session.user.id)
-          .maybeSingle()
-
-        if (profileError || !profile || profile.status === false || profile.role !== 'guru') {
-          await supabase.auth.signOut()
-          router.replace('/login')
-          return
-        }
-
-        if (!cancelled) {
-          setTeacherName(profile.nama_lengkap || 'Guru')
-          setLoading(false)
-        }
-      } catch (err) {
-        console.error('Auth check failed:', err)
-        router.replace('/login')
-      }
-    }
-
-    checkTeacherSession()
-
-    return () => {
-      cancelled = true
-    }
-  }, [router])
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.replace('/login')
-  }
+  const { loading, teacherName, handleLogout } = useTeacherAuth()
 
   if (loading) {
     return (

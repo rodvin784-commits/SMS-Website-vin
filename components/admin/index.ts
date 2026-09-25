@@ -1,6 +1,7 @@
 export { UserTable } from './UserTable'
 export { CreateUserModal } from './CreateUserModal'
 export { EditUserModal } from './EditUserModal'
+export { BulkImportModal } from './BulkImportModal'
 export { MataPelajaranManager } from './MataPelajaranManager'
 export { KelasManager } from './KelasManager'
 export { JurusanManager } from './JurusanManager'
