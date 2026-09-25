@@ -88,4 +88,22 @@ Siswa buka APK → langsung masuk tanpa ketik apa pun jika HP sudah login Google
   - Opsi hierarki (tahap 2 jika diminta): tambah role `kepsek` (read-only laporan, approve), `wakasek`, `tu` → tambah `middleware.ts:107` guard + RLS. Baru perlu jika Kepsek mau monitoring terpisah tanpa hak hapus.
 - Kesimpulan: Buat akun hanya untuk yang **butuh login** (Kepsek jika mau monitoring, Wakasek jika kelola jadwal/nilai, TU jika input presensi/SPP). Tidak perlu buat semua jabatan.
 
-Catatan: Jangan commit `.env.local` & jangan minta password Google siswa. Konfirmasi `ya eksekusi 10/10` untuk implementasi: tombol Google + auto-login + Import CSV.
+---
+
+## 11. Update Hari Ini — 2026-09-25 (Pisah Login + P0 Security + Import CSV Live)
+
+**Ringkasan push hari ini `main` web `610b388` + APK `4fc54f2`:**
+
+- **Domain:** `lib/school-email.ts:4` default `sekolah.sch.id` → `smk.belajar.id` (auto `budi.santoso@smk.belajar.id`) — commit `73ad7a2`
+- **Import Massal CSV:** `app/api/admin/users/bulk/route.ts:1` POST max 200, validasi `@smk.belajar.id` + NIS + kelas aktif, auto-password 12 char; `components/admin/BulkImportModal.tsx:1` template `nama,email,nis`, preview, pilih kelas untuk semua baris; `app/admin/users/page.tsx:297` tombol `Import CSV` — commit `4e91a7c`
+- **Google OAuth 10/10:** `app/auth/callback/route.ts:1` exchange code + enforce hd + cek profiles (blok auto-register); `siswa_apk_by_vin_kuadrat/src/screens/LoginScreen.tsx:86` tombol besar Google primary + form password hidden `details` + WA `wa.me`; `lib/school-email.ts:42` & `components/admin/CreateUserModal.tsx:164` password siswa opsional auto; `App.tsx:71` auto-login tetap — commit `6c2fc97` (web) + `4fc54f2` (APK)
+- **Pisah Login Admin/Guru:** `/admin/login` baru `app/admin/login/page.tsx:1` khusus admin (block guru), `/login` jadi khusus guru (block admin → `/admin/login`), `middleware.ts:92,102` redirect terpisah, `app/admin/layout.tsx:12` bypass AppShell untuk `/admin/login` (fix hamburger nongol) — commit `8cc68c5` + `fedc5cb`
+- **Bersih Teks Login:** `app/login/page.tsx:113,147` hapus `Admin? Login Admin`, `app/admin/login/page.tsx:58,70` hapus `Guru? Login Guru` + `Lupa? Hubungi super admin` — commit `c55fcb3`, `7b02c85`, `7755c2c`
+- **P0 Security:** `lib/login-rate-limit.ts:1` 5 gagal/15 menit per email (admin=`admin`, guru=`guru`), `app/admin/login/page.tsx:17` & `app/login/page.tsx:17` cek block + `console.warn`, `next.config.ts:18` `X-Robots-Tag: noindex` untuk `/admin/login` (CSP/HSTS sudah ada) — commit `610b388`
+- **Google Cloud:** Project `SMK-Bagimu-Negeriku` org `smk.belajar.id` dibuat, OAuth `Web application` Client ID `527789...apps.googleusercontent.com`, Supabase `Providers→Google` Enabled + `URL Configuration` `https://sms-website-one.vercel.app/auth/callback` + `capacitor://localhost` — terverifikasi di dashboard
+- **Dok:** `docWeb/` + `docApk/` sejajar web/apk (92KB+31KB), `dokumentasi/` lama dihapus, duplikat dipertahankan (source tetap di repo)
+- **Build:** `tsc` bersih, `npm run build` 59 routes (`/admin/login`, `/auth/callback`) OK, Vercel deploy `main` live
+
+**Next:** tes login Google `smk.belajar.id` real (1 siswa sudah dibuat), lalu P1 audit log / export rapor jika diminta.
+
+Catatan: Jangan commit `.env.local` & jangan minta password Google siswa.
