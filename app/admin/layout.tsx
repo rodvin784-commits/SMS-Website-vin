@@ -1,15 +1,21 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { ShieldCheck, LayoutDashboard, Users, GraduationCap, BookOpen, Calendar, Building2, UserCheck } from 'lucide-react'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [loading, setLoading] = useState(true)
   const [adminName, setAdminName] = useState('Administrator')
+
+  // Login admin harus standalone tanpa AppShell (tanpa sidebar/header)
+  if (pathname?.startsWith('/admin/login')) {
+    return <>{children}</>
+  }
 
   useEffect(() => {
     let cancelled = false
