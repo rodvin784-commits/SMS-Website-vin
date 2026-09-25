@@ -1,7 +1,7 @@
 // Helper generate email sekolah otomatis dari nama lengkap — aman & editable
 // Dipakai di: CreateUserModal (auto-suggest, user tetap bisa edit manual)
 
-const DEFAULT_DOMAIN = 'sekolah.sch.id'
+const DEFAULT_DOMAIN = 'smk.belajar.id'
 
 export function getSchoolEmailDomain(): string {
   const env = process.env.NEXT_PUBLIC_SCHOOL_EMAIL_DOMAIN?.trim()
