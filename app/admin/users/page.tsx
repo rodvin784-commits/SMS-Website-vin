@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { UserPlus, Users, Search, Filter, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { UserPlus, Users, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react'
 import { FeedbackMessage, Button } from '@/components/ui'
 import { useFeedback } from '@/hooks/useFeedback'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { validateUserCreate, validateUserEdit } from '@/lib/user-validation'
-import { UserTable, CreateUserModal, EditUserModal } from '@/components/admin'
+import { UserTable, CreateUserModal, EditUserModal, BulkImportModal } from '@/components/admin'
 import type { Profile } from '@/components/admin/UserTable'
 
 type RoleFilter = 'guru' | 'siswa' | 'semua'
@@ -71,6 +71,7 @@ export default function AdminUsersPage() {
   // Modal States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isBulkOpen, setIsBulkOpen] = useState(false)
 
   // Form State
   const [submitting, setSubmitting] = useState(false)
@@ -305,6 +306,10 @@ export default function AdminUsersPage() {
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+          <Button variant="secondary" onClick={() => setIsBulkOpen(true)} size="lg">
+            <FileSpreadsheet className="h-4 w-4" />
+            Import CSV
+          </Button>
           <Button onClick={() => setIsCreateModalOpen(true)} size="lg">
             <UserPlus className="h-4 w-4" />
             <span>Tambah Pengguna Baru</span>
@@ -473,6 +478,9 @@ export default function AdminUsersPage() {
         onSubmit={handleUpdateUser}
         submitting={submitting}
       />
+
+      {/* Bulk Import CSV */}
+      <BulkImportModal isOpen={isBulkOpen} onClose={() => setIsBulkOpen(false)} onDone={() => setRefreshKey(k => k + 1)} />
     </div>
   )
 }
