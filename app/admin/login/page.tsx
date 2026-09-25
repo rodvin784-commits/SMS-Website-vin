@@ -63,7 +63,6 @@ export default function AdminLoginPage() {
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">Kata Sandi</label>
                 <IconInput type="password" placeholder="Masukkan kata sandi admin" value={password} onChange={e => setPassword(e.target.value)} required />
-                <p className="text-xs text-slate-400 mt-1.5 text-right">Lupa? Hubungi super admin</p>
               </div>
               <Button type="submit" loading={loading} fullWidth size="lg">{loading ? 'Memproses...' : 'Masuk sebagai Admin'}</Button>
             </form>
