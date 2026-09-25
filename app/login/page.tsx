@@ -111,7 +111,7 @@ export default function LoginPage() {
                 Login Guru
               </h1>
               <p className="text-xs sm:text-sm text-gray-800">
-                Masuk khusus guru. Admin via <a href="/admin/login" className="text-blue-600 font-bold hover:underline">/admin/login</a>
+                Silakan masukan email dan password guru anda di bawah.
               </p>
             </div>
 
@@ -145,7 +145,7 @@ export default function LoginPage() {
                   required
                 />
                 <p className="text-xs font-semibold text-gray-500 mt-1.5 text-right" title="Hubungi admin sekolah untuk reset kata sandi">
-                  Admin? <a href="/admin/login" className="text-blue-600 font-bold hover:underline">Login Admin</a> • Lupa? Hubungi admin
+                  Lupa? Hubungi admin
                 </p>
               </div>
 
