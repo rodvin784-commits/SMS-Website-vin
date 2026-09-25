@@ -6,6 +6,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { Logo, IconInput, Button, FeedbackMessage } from '@/components/ui'
+import { getRateLimitState, recordFail, clearRateLimit, formatRemaining } from '@/lib/login-rate-limit'
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('')
@@ -16,6 +17,13 @@ export default function AdminLoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    const rl = getRateLimitState(email, 'admin')
+    if (rl.blocked) {
+      setError(`Terlalu banyak percobaan. Coba lagi dalam ${formatRemaining(rl.remainingMs)} (5x/15 menit).`)
+      setShowError(true)
+      console.warn('[admin-login] rate-limited', { email, fails: rl.fails })
+      return
+    }
     setLoading(true)
     setError('')
     setShowError(false)
@@ -31,8 +39,11 @@ export default function AdminLoginPage() {
       if (profile.status === false) { await supabase.auth.signOut(); throw new Error('Akun admin dinonaktifkan.') }
       if (profile.role !== 'admin') { await supabase.auth.signOut(); throw new Error('Akses ditolak. Halaman ini hanya untuk Administrator. Guru silakan via /login') }
 
+      clearRateLimit(email, 'admin')
       window.location.assign('/admin/dashboard')
     } catch (err) {
+      recordFail(email, 'admin')
+      console.warn('[admin-login] failed', { email, error: err instanceof Error ? err.message : String(err) })
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan.')
       setShowError(true)
     } finally { setLoading(false) }

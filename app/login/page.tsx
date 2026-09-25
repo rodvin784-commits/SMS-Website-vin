@@ -6,6 +6,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { Logo, IconInput, Button, FeedbackMessage } from '@/components/ui'
+import { getRateLimitState, recordFail, clearRateLimit, formatRemaining } from '@/lib/login-rate-limit'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -16,6 +17,13 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    const rl = getRateLimitState(email, 'guru')
+    if (rl.blocked) {
+      setError(`Terlalu banyak percobaan. Coba lagi dalam ${formatRemaining(rl.remainingMs)} (5x/15 menit).`)
+      setShowError(true)
+      console.warn('[guru-login] rate-limited', { email, fails: rl.fails })
+      return
+    }
     setLoading(true)
     setError('')
     setShowError(false)
@@ -62,6 +70,7 @@ export default function LoginPage() {
         throw new Error('Akun admin silakan login via /admin/login')
       }
       if (role === 'guru') {
+        clearRateLimit(email, 'guru')
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.assign('/teacher/dashboard')
         return
@@ -78,6 +87,8 @@ export default function LoginPage() {
       }
 
     } catch (err) {
+      recordFail(email, 'guru')
+      console.warn('[guru-login] failed', { email, error: err instanceof Error ? err.message : String(err) })
       const message = err instanceof Error ? err.message : 'Terjadi kesalahan sistem.'
       setError(message)
       setShowError(true)
