@@ -22,12 +22,15 @@ export default function AuthLayout({ children, badge }: Props) {
         sizes="100vw"
         className="object-cover"
       />
-      <div className="absolute inset-0 bg-slate-950/75" />
+      <div className="absolute inset-0 bg-slate-950/65" />
       <div className="relative w-full max-w-md">
-        <div className="rounded-3xl bg-white p-8 shadow-2xl sm:p-10">
+        {/* Kartu kaca gelap (rekomendasi): kontras stabil di atas foto terang */}
+        <div className="relative overflow-hidden rounded-[28px] border border-white/15 bg-slate-950/55 p-8 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.65),inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-2xl sm:p-10">
+          {/* Kilau halus di atas kartu */}
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent" />
           {children}
         </div>
-        <p className="mt-5 text-center text-[11px] font-semibold tracking-wide text-slate-300">
+        <p className="mt-5 text-center text-[11px] font-semibold tracking-widest uppercase text-slate-300/90">
           {badge} • SMK Bagimu Negeriku
         </p>
       </div>

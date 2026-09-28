@@ -54,14 +54,14 @@ export default function AdminLoginPage() {
       <div className="space-y-5">
         <div className="text-center space-y-2">
           <Logo src="/gambar3.png" alt="Logo Sekolah" size={56} />
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Login Administrator</h1>
-          <p className="text-xs sm:text-sm text-slate-600">Silakan masukan email dan password administrator di bawah.</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.4)]">Login Administrator</h1>
+          <p className="text-xs sm:text-sm leading-relaxed text-slate-200/90">Silakan masukan email dan password administrator di bawah.</p>
         </div>
         {showError && error && <FeedbackMessage type="error" message={error} />}
         <form onSubmit={handleLogin} className="space-y-4">
-          <IconInput type="email" label="Email Admin" placeholder="admin@sekolah.sch.id" value={email} onChange={e => setEmail(e.target.value)} required />
+          <IconInput type="email" label="Email Admin" labelClassName="text-slate-200" placeholder="admin@sekolah.sch.id" value={email} onChange={e => setEmail(e.target.value)} required />
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">Kata Sandi</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-200 mb-1.5">Kata Sandi</label>
             <IconInput type="password" placeholder="Masukkan kata sandi admin" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
           <Button type="submit" loading={loading} fullWidth size="lg">{loading ? 'Memproses...' : 'Masuk sebagai Admin'}</Button>

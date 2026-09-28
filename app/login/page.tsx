@@ -121,10 +121,10 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center space-y-2">
           <Logo src="/gambar3.png" alt="Logo Sekolah" size={64} />
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.4)]">
             Login Guru
           </h1>
-          <p className="text-xs sm:text-sm text-gray-800">
+          <p className="text-xs sm:text-sm leading-relaxed text-slate-200/90">
             Silakan masukan email dan password guru anda di bawah.
           </p>
         </div>
@@ -140,6 +140,7 @@ export default function LoginPage() {
             <IconInput
               type="email"
               label="Alamat Email"
+              labelClassName="text-slate-200"
               placeholder="nama@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -148,7 +149,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-200 mb-1.5">
               Kata Sandi
             </label>
             <IconInput
@@ -158,7 +159,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-            <p className="text-xs font-semibold text-gray-500 mt-1.5 text-right" title="Hubungi admin sekolah untuk reset kata sandi">
+            <p className="text-xs font-semibold text-slate-300 mt-2 text-right transition-colors hover:text-white" title="Hubungi admin sekolah untuk reset kata sandi">
               Lupa? Hubungi admin
             </p>
           </div>

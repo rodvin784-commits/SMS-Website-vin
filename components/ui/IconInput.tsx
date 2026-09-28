@@ -6,13 +6,14 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 interface IconInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
   type: 'email' | 'password' | 'text'
   label?: string
+  labelClassName?: string // override warna label (default abu gelap; isi text-slate-200 untuk kartu kaca)
   error?: string
   showTogglePassword?: boolean
   onTogglePassword?: () => void
 }
 
 export const IconInput = forwardRef<HTMLInputElement, IconInputProps>(
-  ({ type, label, error, showTogglePassword, onTogglePassword, ...props }, ref) => {
+  ({ type, label, labelClassName, error, showTogglePassword, onTogglePassword, ...props }, ref) => {
     const [showPassword, setShowPassword] = useState(type === 'password' ? false : undefined)
 
     const inputType = type === 'password' && showPassword ? 'text' : type
@@ -20,7 +21,7 @@ export const IconInput = forwardRef<HTMLInputElement, IconInputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+          <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${labelClassName ?? 'text-gray-700'}`}>
             {label}
           </label>
         )}
