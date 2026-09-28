@@ -1,6 +1,6 @@
 # Dokumentasi Projek - Project Tim by Vin-Vines
 
-Tanggal: 2026-09-24 (update terbaru — P0/P1/P2 hardening & perf)
+Tanggal: 2026-09-28 (update terbaru — real-test login Google tembus)
 
 ---
 
@@ -97,6 +97,11 @@ project-tim-vin-vines/
 - **Audit hardening 2026-09-23 (lanjutan):** storage 3 bucket `materi/tugas/pengumpulan` `public:false` (anon list `200 []` kosong ✓, signed URL), guru validasi `lib/guru-auth.ts:118` `isAssigned` dipakai di `app/api/teacher/tugas/route.ts:221`, `materi:148`, `video`, `nilai`, `pengumuman:52` (`getKelasDiajar`), siswa isolasi `lib/siswa-query.ts:32` semua query filter `kelasId`/`siswaId` + RLS `notifikasi_select_own` `USING (profile_id=auth.uid())`.
 - **Perf render & DB:** APK `src/App.tsx:1` `React.lazy` + `Suspense` + `vite.config.ts:6` `manualChunks (vendor-react/supabase)` + splash `2100→1400ms` `SplashScreen.tsx:13` + keep-alive tabs `display:none` + `cacheDashboard` stale-while-revalidate `lib/cache.ts:71` + prefetch idle tabs; Web `app/api/siswa/dashboard/route.ts:41` `Cache-Control private 15s` + `next.config.ts:26` `avif/webp`; DB `supabase/migrations/20260923_add_indexes_and_dashboard_rpc.sql:1` 16 index + RPC `get_dashboard_stats`; admin filter `app/admin/users/page.tsx:33` fix double fetch → single fetch + filter client instant, stats global tidak jadi 0, UI minimalis `Semua/Guru/Siswa` + status `Aktif`.
 
+### Updates 2026-09-28 — Real-test Google login tembus + pesan error OAuth (web)
+- **Real-test LDPlayer:** login Google `smk.belajar.id` tembus dashboard siswa. Akun yatim OAuth (auth tanpa `profiles`) dibersihkan lalu dibuat via admin web — Supabase menautkan identitas Google via email terverifikasi.
+- **`app/login/page.tsx:18`:** tampilkan pesan `?error=` dari `/auth/callback` (`siswa_gunakan_apk`, `akun_belum_terdaftar`, `domain_harus_smk_belajar`, dll). Sebelumnya diabaikan.
+- **Detail lengkap:** `project-tim-vin-vines/UPDATE_BERIKUT.md` §13 (termasuk prasyarat Redirect URL dashboard & build Gradle).
+
 ### Updates Terbaru (2026-09-24) — P0/P1/P2 Hardening & Perf (review Tech Lead)
 - **P0-1 PATCH pengumpulan:** `app/api/siswa/pengumpulan/route.ts:98` ganti full-replace → PATCH scoped: `hasJawabanTeks/hasCatatan/hasHapusFoto` via `form.has()`, `existing` pertahankan jika tidak dikirim; `nextFotoUrls` hanya null jika `hapus_foto=true` atau ada foto baru; validasi `hasContentAfterPatch`. Cegah data loss teks-only hapus 5 foto.
 - **P0-2 Middleware:** `middleware.ts:11` CORS fail-closed (`null` jika `origin` tidak whitelist/`MOBILE_ORIGINS` kosong → 403), `Vary: Origin`, `matcher` tambah `/api/admin/:path*`, role guard `/admin` hanya admin, `/teacher` hanya guru (via `profiles.role`).
@@ -173,6 +178,12 @@ siswa_apk_by_vin_kuadrat/
 - Lihat tugas & pengumpulan
 - Lihat nilai
 - Lihat notifikasi & pengumuman
+
+### Updates 2026-09-28 — OAuth deep link, responsif, splash sinematik, anti-double (APK)
+- **OAuth benar (`src/screens/LoginScreen.tsx:39`, `src/App.tsx:73,133`):** browser sistem + `skipBrowserRedirect` + deep link `com.vin.siswa://login-callback` (intent-filter manifest) → tukar `?code=`/`#access_token` jadi sesi → cek `/api/siswa/me`. `detectSessionInUrl: true`, `flowType: 'pkce'`. Login minimal sesuai sketsa (1 tombol Google + password lipat + WA).
+- **Welcome anti-ganda:** polling mati saat unmount + Welcome maks sekali per user per login (`sambutanTerkirimRef`).
+- **Responsif (`src/App.css:489`):** breakpoint 360–1280px, kartu 2→3 kolom, BottomNav scroll. **Splash 6s:** zoom → mengecil → teks TAHAN ±2,5s → fade biasa.
+- **Bersih:** `console.log/info/debug` bungkam di PROD (`src/main.tsx:10`) — sebelumnya bocorkan token ke logcat. Build Gradle wajib JBR 21. Detail: `UPDATE_BERIKUT.md` §13.
 
 ### Updates Terbaru (2026-09-21) — Sederhana: penandaan & P0 awam (siap kembang)
 - **Splash anti-tabrakan:** `src/components/layout/SplashScreen.tsx:1,113,124` — timeline `DURATION 2100ms`, logo `scale 2.2` hold 0.58–1.51s, teks `splashTextIn .55s 1.58s` + loader `splashLoaderIn .45s 1.72s` dengan `opacity:0` awal. Hasil: selama animasi **hanya logo** tampil, teks/loader muncul setelah logo mengecil → tidak bertabrakan. Build Vite OK.

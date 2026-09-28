@@ -117,3 +117,22 @@ Siswa buka APK → langsung masuk tanpa ketik apa pun jika HP sudah login Google
 - **OTA (opsional Capgo/Appflow):** update web `dist/` tanpa build APK, patch 1MB auto saat buka — cocok untuk `src/screens/*`.
 
 Catatan: Jangan commit `.env.local` & jangan minta password Google siswa.
+
+---
+
+## 13. Real-Test Login Google 2026-09-28 (Hasil + Perbaikan, APK & Web)
+
+**Hasil tes (LDPlayer + akun `vinzent.robertho44@smk.belajar.id`):** login Google kini tembus dashboard siswa. Temuan & perbaikan:
+
+- **Akun yatim OAuth:** percobaan login pertama auto-buat auth user TANPA `profiles` → ditolak benar (`akun_belum_terdaftar`). Solusi ops: hapus auth user di Dashboard → buat via admin web (`/admin/users` → Tambah Pengguna: email persis + NIS + kelas). Catatan: Supabase menautkan identitas Google via **email terverifikasi** (bukan Google user ID) — create-admin dulu lalu OAuth = pola resmi, didukung.
+- **Sesi tidak terbentuk (`siswa_apk/src/lib/supabase.ts:7`):** `detectSessionInUrl: false` + PKCE = code tidak pernah ditukar → `true`. Default `flowType` lib ini ternyata `implicit` → paksa `flowType: 'pkce'` (server kadang tetap pulang via fragment — ditangani dua-duanya).
+- **Balapan sesi (`src/App.tsx:73,133`):** tambah listener `onAuthStateChange(SIGNED_IN)` + `masukDenganSesi()` terpusat; akun non-siswa ditolak dengan pesan jelas (bukan diam). Web `/login` (`app/login/page.tsx:18`) kini tampilkan pesan `?error=` callback (`siswa_gunakan_apk`, `akun_belum_terdaftar`, dll).
+- **OAuth kabur ke Chrome:** ganti pola WebView → `Browser` plugin (Custom Tabs) + `skipBrowserRedirect: true` + deep link `com.vin.siswa://login-callback` (`src/screens/LoginScreen.tsx:39`, `android/.../AndroidManifest.xml:29`, dep `@capacitor/browser` + `@capacitor/app`). Handler `appUrlOpen` tukar `?code=` (exchange) atau `#access_token` (setSession).
+- **Welcome ganda:** polling fallback dimatikan saat unmount + jeda `fetchMe` (`LoginScreen.tsx:15,100`); Welcome maksimal sekali per user per ronde login (`App.tsx:49 sambutanTerkirimRef`, reset saat logout).
+- **Logcat bersih + anti-bocor token (`src/main.tsx:10`):** `console.log/info/debug` dibungkam di PROD (warn/error tetap). Temuan: lib log URL deep link berisi token mentah ke logcat.
+- **Login minimal (sesuai sketsa):** logo → tombol `→ Masuk dengan Akun Belajar` → `atau` → `Masuk dengan password` (lipat) → `Lupa akun? Hubungi Admin via WhatsApp` (class CSS, tanpa inline style).
+- **Responsif (`src/App.css:489`):** breakpoint 360/600/768/1024/1280px — stats 4 kolom, daftar kartu 2→3 kolom, BottomNav scroll di HP kecil, Splash full-screen.
+- **Splash sinematik 6s (`SplashScreen.tsx:14`):** zoom → tahan besar → mengecil normal → teks muncul → TAHAN ±2,5s (progress + status) → fade-out biasa.
+- **Build APK:** Gradle 8.14.3 TIDAK jalan di Java 25 (`Unsupported class file major version 69`) → build pakai JBR 21 Android Studio: `.\gradlew.bat assembleDebug "-Dorg.gradle.java.home=C:\Program Files\Android\Android Studio\jbr"`. ADB LDPlayer: Settings → ADB → koneksi **lokal**, `adb connect localhost:5555`.
+- **PRASYARAT WAJIB (dashboard, tidak bisa dari kode):** Supabase Dashboard → Auth → URL Configuration → Redirect URLs tambah persis `com.vin.siswa://login-callback`. Tanpa ini browser tidak pulang ke APK.
+- **Build:** `tsc` web bersih, APK `tsc -b + vite` OK, test 20/20, `assembleDebug` sukses.
