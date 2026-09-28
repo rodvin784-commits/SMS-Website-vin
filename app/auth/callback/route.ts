@@ -8,7 +8,6 @@ import { getSupabaseAdmin } from '@/lib/supabase-server'
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
-  const next = url.searchParams.get('next') ?? '/login'
 
   if (!code) {
     return NextResponse.redirect(new URL('/login?error=oauth_no_code', url.origin))
