@@ -3,9 +3,9 @@
 // Alur: Supabase Auth → cek profiles.role === guru → /teacher/dashboard
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { Logo, IconInput, Button, FeedbackMessage } from '@/components/ui'
+import AuthLayout from '@/components/auth/AuthLayout'
 import { getRateLimitState, recordFail, clearRateLimit, formatRemaining } from '@/lib/login-rate-limit'
 
 export default function LoginPage() {
@@ -116,81 +116,58 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-blue-950 via-gray-900 to-indigo-950 p-4 lg:p-10">
-      <div className="flex w-full max-w-7xl min-h-[680px] overflow-hidden rounded-3xl bg-white shadow-2xl">
-        {/* Sisi Kiri: Foto gedung sekolah */}
-        <div className="hidden lg:flex lg:w-1/2 relative bg-gray-900 overflow-hidden">
-          <Image
-            src="/gedung-sekolah.jpg"
-            alt="Gedung SMK Bagimu Negeriku"
-            fill
-            priority
-            sizes="50vw"
-            className="object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/70 via-gray-900/10 to-transparent" />
-          <div className="absolute bottom-6 left-6 right-6 text-white">
-            <p className="text-xs font-bold tracking-widest uppercase opacity-70">Portal Guru</p>
-            <h3 className="text-xl font-extrabold">SMK Bagimu Negeriku</h3>
-            <p className="text-xs opacity-80">Mengajar, menilai, dan berbagi — dalam satu genggaman</p>
-          </div>
+    <AuthLayout badge="Portal Guru">
+      <div className="space-y-5">
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <Logo src="/gambar3.png" alt="Logo Sekolah" size={64} />
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
+            Login Guru
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-800">
+            Silakan masukan email dan password guru anda di bawah.
+          </p>
         </div>
 
-        {/* Sisi Kanan: Form Login */}
-        <div className="w-full lg:w-1/2 px-8 py-8 sm:px-16 flex flex-col justify-center bg-gradient-to-b from-white via-sky-50/70 to-sky-100/80">
-          <div className="mx-auto w-full max-w-md space-y-5">
-            {/* Header */}
-            <div className="text-center space-y-2">
-              <Logo src="/gambar3.png" alt="Logo Sekolah" size={64} />
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
-                Login Guru
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-800">
-                Silakan masukan email dan password guru anda di bawah.
-              </p>
-            </div>
+        {/* Error Message */}
+        {showError && error && (
+          <FeedbackMessage type="error" message={error} />
+        )}
 
-            {/* Error Message */}
-            {showError && error && (
-              <FeedbackMessage type="error" message={error} />
-            )}
-
-            {/* Form */}
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <IconInput
-                  type="email"
-                  label="Alamat Email"
-                  placeholder="nama@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
-                  Kata Sandi
-                </label>
-                <IconInput
-                  type="password"
-                  placeholder="Masukkan kata sandi"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <p className="text-xs font-semibold text-gray-500 mt-1.5 text-right" title="Hubungi admin sekolah untuk reset kata sandi">
-                  Lupa? Hubungi admin
-                </p>
-              </div>
-
-              <Button type="submit" loading={loading} fullWidth size="lg">
-                {loading ? 'Memproses...' : 'Masuk'}
-              </Button>
-            </form>
+        {/* Form */}
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <IconInput
+              type="email"
+              label="Alamat Email"
+              placeholder="nama@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
-        </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+              Kata Sandi
+            </label>
+            <IconInput
+              type="password"
+              placeholder="Masukkan kata sandi"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <p className="text-xs font-semibold text-gray-500 mt-1.5 text-right" title="Hubungi admin sekolah untuk reset kata sandi">
+              Lupa? Hubungi admin
+            </p>
+          </div>
+
+          <Button type="submit" loading={loading} fullWidth size="lg">
+            {loading ? 'Memproses...' : 'Masuk'}
+          </Button>
+        </form>
       </div>
-    </div>
+    </AuthLayout>
   )
 }

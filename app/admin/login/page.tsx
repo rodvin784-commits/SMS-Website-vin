@@ -3,9 +3,9 @@
 // Alur: Supabase Auth → cek profiles.role === admin → /admin/dashboard
 
 import { useState } from 'react'
-import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { Logo, IconInput, Button, FeedbackMessage } from '@/components/ui'
+import AuthLayout from '@/components/auth/AuthLayout'
 import { getRateLimitState, recordFail, clearRateLimit, formatRemaining } from '@/lib/login-rate-limit'
 
 export default function AdminLoginPage() {
@@ -50,37 +50,24 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 p-4 lg:p-10">
-      <div className="flex w-full max-w-7xl min-h-[680px] overflow-hidden rounded-3xl bg-white shadow-2xl">
-        <div className="hidden lg:flex lg:w-1/2 relative bg-slate-900 overflow-hidden">
-          <Image src="/gedung-sekolah.jpg" alt="Gedung SMK Bagimu Negeriku" fill priority sizes="50vw" className="object-cover opacity-90" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 to-transparent" />
-          <div className="absolute bottom-6 left-6 right-6 text-white">
-            <p className="text-xs font-bold tracking-widest uppercase opacity-70">Akses Terbatas</p>
-            <h3 className="text-xl font-extrabold">Portal Administrator</h3>
-            <p className="text-xs opacity-80">Kelola pengguna, kelas, dan penugasan — SMK Bagimu Negeriku</p>
-          </div>
+    <AuthLayout badge="Akses Terbatas • Portal Administrator">
+      <div className="space-y-5">
+        <div className="text-center space-y-2">
+          <Logo src="/gambar3.png" alt="Logo Sekolah" size={56} />
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Login Administrator</h1>
+          <p className="text-xs sm:text-sm text-slate-600">Silakan masukan email dan password administrator di bawah.</p>
         </div>
-        <div className="w-full lg:w-1/2 px-8 py-8 sm:px-16 flex flex-col justify-center bg-gradient-to-b from-white to-slate-50">
-          <div className="mx-auto w-full max-w-md space-y-5">
-            <div className="text-center space-y-2">
-              <Logo src="/gambar3.png" alt="Logo Sekolah" size={56} />
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Login Administrator</h1>
-              <p className="text-xs sm:text-sm text-slate-600">Silakan masukan email dan password administrator di bawah.</p>
-            </div>
-            {showError && error && <FeedbackMessage type="error" message={error} />}
-            <form onSubmit={handleLogin} className="space-y-4">
-              <IconInput type="email" label="Email Admin" placeholder="admin@sekolah.sch.id" value={email} onChange={e => setEmail(e.target.value)} required />
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">Kata Sandi</label>
-                <IconInput type="password" placeholder="Masukkan kata sandi admin" value={password} onChange={e => setPassword(e.target.value)} required />
-              </div>
-              <Button type="submit" loading={loading} fullWidth size="lg">{loading ? 'Memproses...' : 'Masuk sebagai Admin'}</Button>
-            </form>
-            <p className="text-center text-[11px] text-slate-400">SMK Bagimu Negeriku • Akses terbatas</p>
+        {showError && error && <FeedbackMessage type="error" message={error} />}
+        <form onSubmit={handleLogin} className="space-y-4">
+          <IconInput type="email" label="Email Admin" placeholder="admin@sekolah.sch.id" value={email} onChange={e => setEmail(e.target.value)} required />
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">Kata Sandi</label>
+            <IconInput type="password" placeholder="Masukkan kata sandi admin" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
-        </div>
+          <Button type="submit" loading={loading} fullWidth size="lg">{loading ? 'Memproses...' : 'Masuk sebagai Admin'}</Button>
+        </form>
+        <p className="text-center text-[11px] text-slate-400">SMK Bagimu Negeriku • Akses terbatas</p>
       </div>
-    </div>
+    </AuthLayout>
   )
 }
