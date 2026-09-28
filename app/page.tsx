@@ -3,8 +3,18 @@ import Image from "next/image";
 
 export default function Home() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-950 via-gray-900 to-indigo-950 px-4">
-      <div className="text-center space-y-8 max-w-lg">
+    <div className="relative flex flex-col items-center justify-center min-h-screen px-4 overflow-hidden bg-slate-950">
+      {/* Background foto gedung + overlay gelap agar teks terbaca */}
+      <Image
+        src="/gedung-sekolah.jpg"
+        alt="Gedung SMK Bagimu Negeriku"
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover"
+      />
+      <div className="absolute inset-0 bg-slate-950/75" />
+      <div className="relative text-center space-y-8 max-w-lg">
         <div className="space-y-3">
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 overflow-hidden p-2">
             <Image

@@ -53,8 +53,8 @@ export default function AdminLoginPage() {
     <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 p-4 lg:p-10">
       <div className="flex w-full max-w-7xl min-h-[680px] overflow-hidden rounded-3xl bg-white shadow-2xl">
         <div className="hidden lg:flex lg:w-1/2 relative bg-slate-900 overflow-hidden">
-          <Image src="/gambar2.png" alt="Ilustrasi Admin" fill priority sizes="50vw" className="object-cover opacity-90" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
+          <Image src="/gedung-sekolah.jpg" alt="Gedung SMK Bagimu Negeriku" fill priority sizes="50vw" className="object-cover opacity-90" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 to-transparent" />
           <div className="absolute bottom-6 left-6 right-6 text-white">
             <p className="text-xs font-bold tracking-widest uppercase opacity-70">Akses Terbatas</p>
             <h3 className="text-xl font-extrabold">Portal Administrator</h3>

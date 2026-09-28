@@ -118,16 +118,22 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-blue-950 via-gray-900 to-indigo-950 p-4 lg:p-10">
       <div className="flex w-full max-w-7xl min-h-[680px] overflow-hidden rounded-3xl bg-white shadow-2xl">
-        {/* Sisi Kiri: Ilustrasi */}
+        {/* Sisi Kiri: Foto gedung sekolah */}
         <div className="hidden lg:flex lg:w-1/2 relative bg-gray-900 overflow-hidden">
           <Image
-            src="/gambar2.png"
-            alt="Ilustrasi Belajar"
+            src="/gedung-sekolah.jpg"
+            alt="Gedung SMK Bagimu Negeriku"
             fill
             priority
             sizes="50vw"
             className="object-cover"
           />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/70 via-gray-900/10 to-transparent" />
+          <div className="absolute bottom-6 left-6 right-6 text-white">
+            <p className="text-xs font-bold tracking-widest uppercase opacity-70">Portal Guru</p>
+            <h3 className="text-xl font-extrabold">SMK Bagimu Negeriku</h3>
+            <p className="text-xs opacity-80">Mengajar, menilai, dan berbagi — dalam satu genggaman</p>
+          </div>
         </div>
 
         {/* Sisi Kanan: Form Login */}
