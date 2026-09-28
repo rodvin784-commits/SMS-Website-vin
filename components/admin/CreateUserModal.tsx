@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { UserPlus, GraduationCap } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
@@ -45,7 +45,6 @@ export function CreateUserModal({
   const { kelasOptions, loading: loadingKelas } = useKelasOptions(isOpen)
   // Track apakah email pernah diedit manual — jika true, auto tidak overwrite lagi
   const [emailEdited, setEmailEdited] = useState(false)
-  const prevNamaRef = useRef('')
 
   // Reset form when modal opens
   useEffect(() => {
@@ -53,7 +52,6 @@ export function CreateUserModal({
     const raf = requestAnimationFrame(() => {
       setFormData({ nama_lengkap: '', email: '', password: '', role: 'guru', kelas_id: '', nip: '', nis: '' })
       setEmailEdited(false)
-      prevNamaRef.current = ''
     })
     return () => cancelAnimationFrame(raf)
   }, [isOpen])
@@ -78,18 +76,23 @@ export function CreateUserModal({
   ) => {
     const val = e.target.value
     // Auto-generate email dari nama lengkap (aman: tidak overwrite jika user sudah edit manual)
+    // formData.nama_lengkap = nama sebelum perubahan ini → pembanding email auto sebelumnya
     if (field === 'nama_lengkap') {
       const autoEmail = generateSchoolEmail(val)
-      setFormData((prev) => {
-        const shouldAuto = !emailEdited && (!prev.email || prev.email === generateSchoolEmail(prevNamaRef.current))
-        prevNamaRef.current = val
-        if (shouldAuto) {
-          if (autoEmail) return { ...prev, nama_lengkap: val, email: autoEmail }
+      const prevEmail = formData.email
+      const shouldAuto = !emailEdited && (!prevEmail || prevEmail === generateSchoolEmail(formData.nama_lengkap))
+      if (shouldAuto) {
+        if (autoEmail) {
+          setFormData((prev) => ({ ...prev, nama_lengkap: val, email: autoEmail }))
+        } else if (!val.trim()) {
           // nama dikosongkan → kosongkan email auto juga
-          if (!val.trim()) return { ...prev, nama_lengkap: val, email: '' }
+          setFormData((prev) => ({ ...prev, nama_lengkap: val, email: '' }))
+        } else {
+          setFormData((prev) => ({ ...prev, nama_lengkap: val }))
         }
-        return { ...prev, nama_lengkap: val }
-      })
+      } else {
+        setFormData((prev) => ({ ...prev, nama_lengkap: val }))
+      }
       return
     }
     if (field === 'email') {
@@ -97,7 +100,6 @@ export function CreateUserModal({
       setEmailEdited(val.trim() !== '' && val !== generateSchoolEmail(formData.nama_lengkap))
       // kosongkan → auto aktif lagi
       if (val.trim() === '') setEmailEdited(false)
-      prevNamaRef.current = formData.nama_lengkap
     }
     setFormData((prev) => ({ ...prev, [field]: val }))
   }
@@ -107,7 +109,6 @@ export function CreateUserModal({
     if (!auto) { alert('Isi Nama Lengkap dulu untuk generate email'); return }
     setFormData((prev) => ({ ...prev, email: auto }))
     setEmailEdited(false)
-    prevNamaRef.current = formData.nama_lengkap
   }
 
   return (

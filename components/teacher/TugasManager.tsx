@@ -5,7 +5,6 @@ import {
   CalendarDays,
   Camera,
   CheckCircle2,
-  ClipboardList,
   Clock,
   Download,
   FileText,
@@ -661,6 +660,8 @@ export function TugasManager() {
               <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
                 {fotoPreviews.map((src, idx) => (
                   <div key={idx} className="relative group">
+                    {/* blob preview lokal — next/image tidak cocok */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={src} alt={`Preview ${idx + 1}`} className="w-full h-24 object-cover rounded-xl border border-gray-200" />
                     <button type="button" onClick={() => hapusFotoPreview(idx)} className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full p-1 shadow-md hover:bg-rose-700">
                       <X className="h-3 w-3" />
@@ -769,6 +770,8 @@ export function TugasManager() {
                     <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
                       {tugasFotoPreview[t.id].map((url, idx) => (
                         <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                          {/* signed-URL dinamis — next/image tidak cocok */}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={url} alt={`Foto ${idx + 1}`} className="w-full h-24 object-cover rounded-xl border border-gray-200 hover:opacity-90" />
                         </a>
                       ))}
@@ -902,6 +905,8 @@ export function TugasManager() {
                                       <div className="grid grid-cols-3 gap-1">
                                         {pengumpulanFotoPreview[p.id].map((url, idx) => (
                                           <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                                            {/* signed-URL dinamis — next/image tidak cocok */}
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
                                             <img src={url} alt={`Foto ${idx + 1}`} className="w-full h-16 object-cover rounded-lg border border-gray-200" />
                                           </a>
                                         ))}

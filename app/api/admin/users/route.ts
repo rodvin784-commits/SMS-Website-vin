@@ -142,7 +142,9 @@ export async function POST(request: Request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin()
-    let { email, password, nama_lengkap, role, kelas_id, nis, nip } = await request.json()
+    const body = await request.json()
+    const { email, nama_lengkap, role, kelas_id, nis, nip } = body
+    let password: string | undefined = body.password
 
     // Validasi input — siswa Google OAuth: password opsional (auto-random)
     if (!email) {

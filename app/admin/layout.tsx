@@ -13,11 +13,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [adminName, setAdminName] = useState('Administrator')
 
   // Login admin harus standalone tanpa AppShell (tanpa sidebar/header)
-  if (pathname?.startsWith('/admin/login')) {
-    return <>{children}</>
-  }
+  const isLoginPage = pathname?.startsWith('/admin/login')
 
   useEffect(() => {
+    if (isLoginPage) return
     let cancelled = false
 
     async function checkAdminSession() {
@@ -76,11 +75,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => {
       cancelled = true
     }
-  }, [router])
+  }, [router, isLoginPage])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.replace('/login')
+  }
+
+  if (isLoginPage) {
+    return <>{children}</>
   }
 
   if (loading) {

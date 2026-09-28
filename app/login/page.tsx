@@ -2,36 +2,35 @@
 // LoginPage — Web KHUSUS GURU (admin dipisah ke /admin/login). Kiri ilustrasi, kanan form.
 // Alur: Supabase Auth → cek profiles.role === guru → /teacher/dashboard
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Logo, IconInput, Button, FeedbackMessage } from '@/components/ui'
 import AuthLayout from '@/components/auth/AuthLayout'
 import { getRateLimitState, recordFail, clearRateLimit, formatRemaining } from '@/lib/login-rate-limit'
 
+function getOAuthError(): string | null {
+  if (typeof window === 'undefined') return null
+  const kode = new URLSearchParams(window.location.search).get('error')
+  if (!kode) return null
+  const pesan: Record<string, string> = {
+    siswa_gunakan_apk: 'Akun siswa wajib login via aplikasi mobile (APK), bukan web ini.',
+    akun_belum_terdaftar: 'Akun Google ini belum terdaftar. Hubungi admin untuk didaftarkan.',
+    email_sudah_terdaftar_hubungi_admin: 'Email ini sudah terdaftar dengan akun berbeda. Hubungi admin sekolah.',
+    akun_dinonaktifkan: 'Akun Anda dinonaktifkan. Hubungi admin sekolah.',
+    domain_harus_smk_belajar: 'Login Google wajib memakai akun @smk.belajar.id.',
+    oauth_no_code: 'Login Google gagal (kode hilang). Silakan coba lagi.',
+    oauth_no_email: 'Login Google gagal (email tidak terbaca). Silakan coba lagi.',
+  }
+  return pesan[kode] ?? `Login Google ditolak (${kode}). Hubungi admin.`
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showError, setShowError] = useState(false)
-
-  // Tampilkan pesan penolakan dari /auth/callback (?error=...) agar user paham
-  // kenapa login Google ditolak (mis. siswa wajib via APK, akun belum terdaftar).
-  useEffect(() => {
-    const kode = new URLSearchParams(window.location.search).get('error')
-    if (!kode) return
-    const pesan: Record<string, string> = {
-      siswa_gunakan_apk: 'Akun siswa wajib login via aplikasi mobile (APK), bukan web ini.',
-      akun_belum_terdaftar: 'Akun Google ini belum terdaftar. Hubungi admin untuk didaftarkan.',
-      email_sudah_terdaftar_hubungi_admin: 'Email ini sudah terdaftar dengan akun berbeda. Hubungi admin sekolah.',
-      akun_dinonaktifkan: 'Akun Anda dinonaktifkan. Hubungi admin sekolah.',
-      domain_harus_smk_belajar: 'Login Google wajib memakai akun @smk.belajar.id.',
-      oauth_no_code: 'Login Google gagal (kode hilang). Silakan coba lagi.',
-      oauth_no_email: 'Login Google gagal (email tidak terbaca). Silakan coba lagi.',
-    }
-    setError(pesan[kode] ?? `Login Google ditolak (${kode}). Hubungi admin.`)
-    setShowError(true)
-  }, [])
+  // Baca ?error= dari /auth/callback saat inisialisasi (tanpa useEffect → lolos lint set-state-in-effect)
+  const [error, setError] = useState<string | null>(() => getOAuthError())
+  const [showError, setShowError] = useState<boolean>(() => getOAuthError() !== null)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
