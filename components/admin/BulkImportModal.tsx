@@ -128,14 +128,14 @@ export function BulkImportModal({ isOpen, onClose, onDone }: { isOpen: boolean; 
           <Button type="button" variant="secondary" size="sm" onClick={handleDownloadTemplate}>
             <Download className="h-4 w-4" /> Download Template
           </Button>
-          <label className="inline-flex items-center gap-2 px-3 py-2 bg-gray-900 text-white rounded-xl text-xs font-semibold cursor-pointer hover:bg-black">
+          <label className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold cursor-pointer hover:bg-blue-700">
             <Upload className="h-4 w-4" /> Pilih File CSV
             <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
           </label>
         </div>
 
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Kelas Tujuan <span className="text-red-500">*</span></label>
+          <label className="block text-sm font-semibold text-gray-700">Kelas Tujuan <span className="text-red-500">*</span></label>
           <select value={kelasId} onChange={e => { setKelasId(e.target.value); setRows(prev => prev.map(r => ({ ...r, kelas_id: e.target.value }))) }} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
             <option value="">-- Pilih Kelas (wajib, untuk semua baris) --</option>
             {kelasOptions.map(k => <option key={k.id} value={k.id}>Kelas {k.tingkat} {k.nama_kelas} {k.tahun_ajaran ? `· ${k.tahun_ajaran}` : ''}</option>)}

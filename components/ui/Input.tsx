@@ -15,7 +15,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">
             {label}
           </label>
         )}
@@ -29,7 +29,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             className={`
               w-full rounded-2xl border bg-white py-3 pl-12 pr-4 text-sm text-gray-900
-              placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-600/10
+              placeholder:text-gray-500 focus:outline-none focus:ring-4 focus:ring-blue-600/10
               transition-all shadow-sm
               ${
                 error

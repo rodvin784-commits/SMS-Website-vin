@@ -37,11 +37,11 @@ export function PresensiRekap() {
         <p className="text-sm text-gray-500">Rekap bulanan per kelas (hadir/izin/sakit/alpha) — export CSV untuk wali kelas & TU.</p>
       </div>
       <div className="bg-white rounded-2xl p-4 shadow-sm border flex flex-wrap gap-3">
-        <select value={kelasId} onChange={e=>setKelasId(e.target.value)} className="px-3 py-2 rounded-xl bg-gray-50 border text-sm">
+        <select value={kelasId} onChange={e=>setKelasId(e.target.value)} aria-label="Kelas" className="px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
           <option value="">Pilih Kelas</option>
           {kelasOptions.map(k=> <option key={k.id} value={k.id}>Kelas {k.tingkat} {k.nama_kelas}</option>)}
         </select>
-        <input type="month" value={bulan} onChange={e=>setBulan(e.target.value)} className="px-3 py-2 rounded-xl bg-gray-50 border text-sm" />
+        <input type="month" value={bulan} onChange={e=>setBulan(e.target.value)} aria-label="Bulan" className="px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
         <Button onClick={muat} disabled={!kelasId} size="sm">Muat</Button>
         <Button variant="secondary" onClick={exportCSV} disabled={rekap.length===0} size="sm"><Download className="h-4 w-4"/> Export CSV</Button>
       </div>

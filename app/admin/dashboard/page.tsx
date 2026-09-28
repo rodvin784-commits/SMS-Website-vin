@@ -329,13 +329,13 @@ export default function AdminDashboardPage() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="block">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span className="text-sm font-semibold text-gray-700">
               Tahun Ajaran
             </span>
             <select
               value={tahunAjaranFilter}
               onChange={(e) => setTahunAjaranFilter(e.target.value)}
-              className="mt-1.5 w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              className="mt-1.5 w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
               <option value="all">Semua Tahun Ajaran</option>
               {tahunAjaranOptions.map((tahun) => (
@@ -347,13 +347,13 @@ export default function AdminDashboardPage() {
           </label>
 
           <label className="block">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span className="text-sm font-semibold text-gray-700">
               Jurusan
             </span>
             <select
               value={jurusanFilter}
               onChange={(e) => setJurusanFilter(e.target.value)}
-              className="mt-1.5 w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              className="mt-1.5 w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
               <option value="all">Semua Jurusan</option>
               {jurusanOptions.map((j) => (

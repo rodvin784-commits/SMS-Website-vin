@@ -272,13 +272,13 @@ export function MateriAjarManager() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-gray-900">{editing ? 'Edit Materi' : 'Tambah Materi Baru'}</h3>
-            <button onClick={() => { setShowForm(false); resetForm() }} className="text-gray-400 hover:text-gray-700">
+            <button onClick={() => { setShowForm(false); resetForm() }} className="text-gray-500 hover:text-gray-700">
               <X className="h-5 w-5" />
             </button>
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Mata Pelajaran</label>
+            <label className="block text-sm font-semibold text-gray-700">Mata Pelajaran</label>
             <select
               value={formMapel}
               onChange={(e) => { setFormMapel(e.target.value); setFormKelas([]) }}
@@ -292,13 +292,13 @@ export function MateriAjarManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Kelas Tujuan
             </label>
             {!formMapel ? (
-              <p className="text-xs text-gray-400 italic">Pilih mata pelajaran terlebih dahulu.</p>
+              <p className="text-xs text-gray-500 italic">Pilih mata pelajaran terlebih dahulu.</p>
             ) : kelasOptionsForForm.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">Anda belum ditugaskan mengajar kelas untuk mapel ini.</p>
+              <p className="text-xs text-gray-500 italic">Anda belum ditugaskan mengajar kelas untuk mapel ini.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {kelasOptionsForForm.map((k) => (
@@ -321,7 +321,7 @@ export function MateriAjarManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Judul *</label>
+            <label className="block text-sm font-semibold text-gray-700">Judul *</label>
             <input
               value={formJudul}
               onChange={(e) => setFormJudul(e.target.value)}
@@ -331,7 +331,7 @@ export function MateriAjarManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Deskripsi / Ringkasan</label>
+            <label className="block text-sm font-semibold text-gray-700">Deskripsi / Ringkasan</label>
             <textarea
               value={formDeskripsi}
               onChange={(e) => setFormDeskripsi(e.target.value)}
@@ -341,7 +341,7 @@ export function MateriAjarManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               File Materi {editing && editing.has_file && '(file sudah ada — unggah untuk mengganti)'} (maks 25MB)
             </label>
             <input
@@ -417,14 +417,14 @@ export function MateriAjarManager() {
                       setFormFile(null)
                       setShowForm(true)
                     }}
-                    className="p-2 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
+                    className="p-2 rounded-lg text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"
                     title="Edit"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(m)}
-                    className="p-2 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50"
+                    className="p-2 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50"
                     title="Hapus"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -446,7 +446,7 @@ export function MateriAjarManager() {
                     {m.nama_file ?? 'Unduh materi'}
                   </button>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 text-xs text-gray-400">
+                  <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
                     <FileText className="h-3.5 w-3.5" />
                     Tanpa file
                   </span>

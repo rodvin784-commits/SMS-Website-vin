@@ -497,20 +497,19 @@ export function TugasManager() {
       {/* Header + search + tombol tambah */}
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
         <div className="flex items-center gap-3 flex-1">
-          <p className="text-sm text-gray-500 whitespace-nowrap">{tugas.length} tugas</p>
           <div className="relative flex-1 max-w-sm">
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cari judul, mapel, deskripsi…"
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 placeholder:text-gray-400"
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 placeholder:text-gray-500"
             />
-            <span className="absolute left-3 top-2.5 text-gray-400 text-sm">⌕</span>
+            <span className="absolute left-3 top-2.5 text-gray-500 text-sm">⌕</span>
           </div>
         </div>
         <button
           onClick={bukaTambah}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white text-sm font-semibold transition-colors"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-sm transition-colors"
         >
           <Plus className="h-4 w-4" />
           Buat Tugas
@@ -524,14 +523,14 @@ export function TugasManager() {
             <h3 className="font-bold text-gray-900">
               {editing ? 'Edit Tugas' : 'Buat Tugas Baru'}
             </h3>
-            <button onClick={() => { setShowForm(false); resetForm() }} className="text-gray-400 hover:text-gray-700">
+            <button onClick={() => { setShowForm(false); resetForm() }} className="text-gray-500 hover:text-gray-700">
               <X className="h-5 w-5" />
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Mata Pelajaran</label>
+              <label className="block text-sm font-semibold text-gray-700">Mata Pelajaran</label>
               <select
                 value={formMapel}
                 onChange={(e) => { setFormMapel(e.target.value); setFormKelas([]) }}
@@ -544,7 +543,7 @@ export function TugasManager() {
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Status</label>
+              <label className="block text-sm font-semibold text-gray-700">Status</label>
               <select
                 value={formStatus}
                 onChange={(e) => setFormStatus(e.target.value)}
@@ -558,13 +557,13 @@ export function TugasManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Kelas Tujuan {formMapel && kelasOptionsForForm.length > 0 && `(${kelasOptionsForForm.length} kelas Anda untuk mapel ini)`}
             </label>
             {!formMapel ? (
-              <p className="text-xs text-gray-400 italic">Pilih mata pelajaran terlebih dahulu.</p>
+              <p className="text-xs text-gray-500 italic">Pilih mata pelajaran terlebih dahulu.</p>
             ) : kelasOptionsForForm.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">Anda belum ditugaskan mengajar kelas untuk mapel ini.</p>
+              <p className="text-xs text-gray-500 italic">Anda belum ditugaskan mengajar kelas untuk mapel ini.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {kelasOptionsForForm.map((k) => (
@@ -587,7 +586,7 @@ export function TugasManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Judul *</label>
+            <label className="block text-sm font-semibold text-gray-700">Judul *</label>
             <input
               value={formJudul}
               onChange={(e) => setFormJudul(e.target.value)}
@@ -597,7 +596,7 @@ export function TugasManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Deskripsi / Instruksi</label>
+            <label className="block text-sm font-semibold text-gray-700">Deskripsi / Instruksi</label>
             <textarea
               value={formDeskripsi}
               onChange={(e) => setFormDeskripsi(e.target.value)}
@@ -608,7 +607,7 @@ export function TugasManager() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Tanggal Mulai</label>
+              <label className="block text-sm font-semibold text-gray-700">Tanggal Mulai</label>
               <input
                 type="date"
                 value={formTanggal}
@@ -617,7 +616,7 @@ export function TugasManager() {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Deadline</label>
+              <label className="block text-sm font-semibold text-gray-700">Deadline</label>
               <input
                 type="date"
                 value={formDeadline}
@@ -628,7 +627,7 @@ export function TugasManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Lampiran File (opsional, maks 15MB)
             </label>
             <input
@@ -640,7 +639,7 @@ export function TugasManager() {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Foto Tugas (opsional, maks 5 foto, 8MB/foto) <span className="normal-case font-normal text-gray-500">— jepret atau pilih dari galeri</span>
             </label>
             <div className="flex flex-wrap gap-2">
@@ -738,14 +737,14 @@ export function TugasManager() {
                   </button>
                   <button
                     onClick={() => bukaEdit(t)}
-                    className="p-2 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
+                    className="p-2 rounded-lg text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"
                     title="Edit"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(t)}
-                    className="p-2 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50"
+                    className="p-2 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50"
                     title="Hapus"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -825,7 +824,7 @@ export function TugasManager() {
                       {detail.tugas.mapel_nama} · Deadline: {formatTanggal(detail.tugas.deadline)}
                     </p>
                   </div>
-                  <button onClick={() => setDetail(null)} className="text-gray-400 hover:text-gray-700">
+                  <button onClick={() => setDetail(null)} className="text-gray-500 hover:text-gray-700">
                     <X className="h-5 w-5" />
                   </button>
                 </div>
@@ -865,7 +864,7 @@ export function TugasManager() {
                           <tr key={s.siswa_id} className="hover:bg-gray-50/80">
                             <td className="py-3 px-4 align-top">
                               <p className="text-sm font-medium text-gray-900">{s.nama_lengkap}</p>
-                              <p className="text-xs text-gray-400">{s.kelas_nama} · NIS {s.nis}</p>
+                              <p className="text-xs text-gray-500">{s.kelas_nama} · NIS {s.nis}</p>
                             </td>
                             <td className="py-3 px-4 align-top">
                               <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${PENGUMPULAN_STYLES[p?.status ?? 'belum_dikumpulkan']}`}>
@@ -920,13 +919,13 @@ export function TugasManager() {
                                   </div>
                                 )}
                                 {!p?.has_file && !p?.has_foto && !p?.jawaban_teks && (
-                                  <span className="text-xs text-gray-400 italic">—</span>
+                                  <span className="text-xs text-gray-500 italic">—</span>
                                 )}
                               </div>
                             </td>
                             <td className="py-3 px-4 align-top">
                               {!p ? (
-                                <span className="text-xs text-gray-400 italic">Belum kumpul</span>
+                                <span className="text-xs text-gray-500 italic">Belum kumpul</span>
                               ) : (
                                 <div className="space-y-2 min-w-[160px]">
                                   <input
@@ -962,7 +961,7 @@ export function TugasManager() {
                   )}
                 </div>
 
-                <div className="px-6 py-3 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-400">
+                <div className="px-6 py-3 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-500">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Penilaian status pengumpulan (dinilai/terlambat) mengikuti alur aplikasi siswa.
                 </div>

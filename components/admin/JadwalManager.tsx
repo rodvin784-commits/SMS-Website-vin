@@ -216,7 +216,7 @@ export function JadwalManager() {
       {feedback && <FeedbackMessage type={feedback.type} message={feedback.message} />}
 
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-        <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-2">
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
           Pilih Kelas
         </label>
         {loading ? (
@@ -330,7 +330,7 @@ export function JadwalManager() {
       >
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
               Penugasan Guru
             </label>
             <Select
@@ -347,7 +347,7 @@ export function JadwalManager() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">Hari</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Hari</label>
             <Select
               value={form.hari}
               onChange={(e) => setForm((prev) => ({ ...prev, hari: e.target.value }))}

@@ -132,7 +132,7 @@ export function CreateUserModal({
 
         {/* Nama Lengkap */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+          <label className="block text-sm font-semibold text-gray-700">
             Nama Lengkap <span className="text-red-500">*</span>
           </label>
           <Input
@@ -146,7 +146,7 @@ export function CreateUserModal({
 
         {/* Email */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+          <label className="block text-sm font-semibold text-gray-700">
             Email Sekolah <span className="text-red-500">*</span>
             <span className="ml-2 text-[10px] font-normal normal-case text-gray-400">otomatis dari nama, bisa diedit</span>
           </label>
@@ -172,7 +172,7 @@ export function CreateUserModal({
 
         {/* Password — siswa Google OAuth bisa kosong (auto 12 char), guru wajib */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+          <label className="block text-sm font-semibold text-gray-700">
             Password {formData.role === 'siswa' ? <span className="text-gray-400 font-medium normal-case">(opsional, auto jika kosong — untuk Google)</span> : <span className="text-red-500">*</span>}
           </label>
           <Input
@@ -187,7 +187,7 @@ export function CreateUserModal({
 
         {/* Role */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+          <label className="block text-sm font-semibold text-gray-700">
             Role / Peran <span className="text-red-500">*</span>
           </label>
           <div className="relative">
@@ -219,7 +219,7 @@ export function CreateUserModal({
         {/* NIP (khusus guru) */}
         {formData.role === 'guru' && (
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               NIP <span className="text-gray-400 font-medium normal-case">(opsional)</span>
             </label>
             <Input
@@ -234,7 +234,7 @@ export function CreateUserModal({
         {/* NIS (khusus siswa) */}
         {formData.role === 'siswa' && (
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               NIS <span className="text-red-500">*</span>
             </label>
             <Input
@@ -250,14 +250,14 @@ export function CreateUserModal({
         {/* Kelas (khusus siswa) */}
         {formData.role === 'siswa' && (
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Kelas <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <select
                 value={formData.kelas_id}
                 onChange={(e) => setFormData((prev) => ({ ...prev, kelas_id: e.target.value }))}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 cursor-pointer disabled:opacity-60"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer disabled:opacity-60"
                 disabled={loadingKelas}
                 required
               >

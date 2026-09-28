@@ -214,7 +214,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total</span>
+            <span className="text-[13px] font-semibold text-gray-500">Total</span>
             <div className="h-8 w-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600">
               <GraduationCap className="h-4 w-4" />
             </div>
@@ -225,7 +225,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
 
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Aktif</span>
+            <span className="text-[13px] font-semibold text-gray-500">Aktif</span>
             <div className="h-8 w-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
               <CheckCircle2 className="h-4 w-4" />
             </div>
@@ -238,7 +238,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
 
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tingkat</span>
+            <span className="text-[13px] font-semibold text-gray-500">Tingkat</span>
             <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
               <Filter className="h-4 w-4" />
             </div>
@@ -263,7 +263,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
               placeholder="Cari nama kelas atau tahun ajaran..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
           </div>
 
@@ -271,7 +271,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
             <select
               value={jurusanFilter}
               onChange={(e) => setJurusanFilter(e.target.value)}
-              className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
               <option value="all">Semua Jurusan</option>
               {jurusanOptions.map((j) => (
@@ -284,7 +284,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
             <select
               value={tingkatFilter}
               onChange={(e) => setTingkatFilter(e.target.value)}
-              className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
               <option value="all">Semua Tingkat</option>
               {tingkatOptions.map((opt: { value: string; label: string }) => (
@@ -458,7 +458,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
             })
           }} className="space-y-4 pt-2">
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Nama Kelas <span className="text-red-500">*</span>
             </label>
             <Input
@@ -471,13 +471,13 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Tingkat <span className="text-red-500">*</span>
             </label>
             <select
               name="tingkat"
               required
-              className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 cursor-pointer appearance-none"
+              className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none"
             >
               <option value="">-- Pilih tingkat --</option>
               {tingkatOptions.map((opt: { value: string; label: string }) => (
@@ -489,13 +489,13 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Tahun Ajaran <span className="text-red-500">*</span>
             </label>
             <select
               name="tahun_ajaran"
               required
-              className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 cursor-pointer appearance-none"
+              className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none"
             >
               <option value="">-- Pilih tahun ajaran --</option>
               {tahunAjaranOptions.map((tahun: string) => (
@@ -508,7 +508,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Jurusan <span className="text-gray-400">(opsional)</span>
             </label>
             {fetchingJurusan ? (
@@ -580,7 +580,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Nama Kelas
               </label>
               <Input
@@ -592,13 +592,13 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Tingkat
               </label>
               <select
                 name="tingkat"
                 defaultValue={editingItem.tingkat.toString()}
-                className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 cursor-pointer appearance-none"
+                className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none"
               >
                 <option value="">-- Pilih tingkat --</option>
                 {tingkatOptions.map((opt) => (
@@ -610,13 +610,13 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Tahun Ajaran
               </label>
               <select
                 name="tahun_ajaran"
                 defaultValue={editingItem.tahun_ajaran}
-                className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 cursor-pointer appearance-none"
+                className="w-full px-4 py-3.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none"
               >
                 <option value="">-- Pilih tahun ajaran --</option>
                 {tahunAjaranOptions.map((tahun) => (
@@ -628,7 +628,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Jurusan <span className="text-gray-400 font-medium normal-case">(opsional)</span>
               </label>
               {fetchingJurusan ? (
@@ -654,7 +654,7 @@ export function KelasManager({ onDataChanged }: KelasManagerProps) {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Status
               </label>
               <div className="flex items-center space-x-6">

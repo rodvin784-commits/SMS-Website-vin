@@ -1,5 +1,8 @@
 'use client'
 
+// AssignmentCard — Pill kelas kecil di dalam kartu mata pelajaran.
+// Modern: rounded-full dengan latar lembut (bukan kotak kaku).
+
 export type GuruAssignment = {
   id: string
   mata_pelajaran_id: string
@@ -16,12 +19,14 @@ interface AssignmentCardProps {
 }
 
 export function AssignmentCard({ assignment }: AssignmentCardProps) {
+  const label = assignment.kelas_nama ?? 'Kelas —'
+  const title = assignment.tahun_ajaran ? `${label} • T.A. ${assignment.tahun_ajaran}` : label
   return (
-    <div className="inline-flex flex-col rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2">
-      <span className="text-sm font-bold text-gray-900">{assignment.kelas_nama}</span>
-      <span className="text-xs text-gray-400">
-        {assignment.tahun_ajaran ? `T.A. ${assignment.tahun_ajaran}` : '—'}
-      </span>
-    </div>
+    <span
+      title={title}
+      className="inline-flex max-w-full items-center rounded-full bg-emerald-100/80 px-3 py-1 text-xs font-bold text-emerald-800"
+    >
+      <span className="truncate">{label}</span>
+    </span>
   )
 }

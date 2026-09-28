@@ -140,7 +140,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total</span>
+            <span className="text-[13px] font-semibold text-gray-500">Total</span>
             <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
               <GraduationCap className="h-4 w-4" />
             </div>
@@ -151,7 +151,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
 
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Aktif</span>
+            <span className="text-[13px] font-semibold text-gray-500">Aktif</span>
             <div className="h-8 w-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
               <CheckCircle2 className="h-4 w-4" />
             </div>
@@ -164,7 +164,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
 
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Nonaktif</span>
+            <span className="text-[13px] font-semibold text-gray-500">Nonaktif</span>
             <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
               <Filter className="h-4 w-4" />
             </div>
@@ -189,7 +189,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
               placeholder="Cari kode atau nama jurusan..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
           </div>
 
@@ -327,7 +327,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
           })
         }} className="space-y-4 pt-2">
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Kode <span className="text-red-500">*</span>
             </label>
             <Input
@@ -341,7 +341,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Nama Jurusan <span className="text-red-500">*</span>
             </label>
             <Input
@@ -388,7 +388,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Kode
               </label>
               <Input
@@ -401,7 +401,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Nama Jurusan
               </label>
               <Input
@@ -413,7 +413,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Status
               </label>
               <div className="flex items-center space-x-6">

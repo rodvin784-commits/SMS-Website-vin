@@ -11,10 +11,10 @@ export default function TeacherJadwalPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center space-y-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-          <p className="text-sm font-medium text-gray-400">Memuat Panel Guru...</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent"></div>
+          <p className="text-sm font-medium text-gray-600">Memuat Panel Guru...</p>
         </div>
       </div>
     )
@@ -31,7 +31,7 @@ export default function TeacherJadwalPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Jadwal Mengajar</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-600 mt-0.5">
             Mata pelajaran yang Anda ampu sepanjang minggu (Senin–Sabtu). Hari ini ditandai hijau.
           </p>
         </div>

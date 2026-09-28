@@ -148,7 +148,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-200 mb-1.5">
+            <label className="block text-sm font-semibold text-slate-200 mb-1.5">
               Kata Sandi
             </label>
             <IconInput
