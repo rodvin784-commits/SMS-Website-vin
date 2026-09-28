@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { adminCheck, getSupabaseAdmin } from '@/lib/supabase-server'
 import { denyResponse, serverError } from '@/lib/api-admin'
+import { throttle, throttleResponse, clientIp } from '@/lib/api-throttle'
 
 const ROLES = ['guru', 'siswa'] as const
 type Role = (typeof ROLES)[number]
@@ -140,6 +141,10 @@ export async function POST(request: Request) {
     if (!auth.ok) {
       return denyResponse()
     }
+
+    // Throttle server-side: cegah spam pembuatan akun (30/menit per IP).
+    const limit = throttle(`admin-users:${clientIp(request)}`, 30, 60_000)
+    if (!limit.ok) return throttleResponse(limit.retryAfterSec)
 
     const supabaseAdmin = getSupabaseAdmin()
     const body = await request.json()

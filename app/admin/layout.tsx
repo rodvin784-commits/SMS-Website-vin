@@ -21,41 +21,43 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     async function checkAdminSession() {
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        // getUser() validasi token ke server Auth (lebih aman dari getSession()).
+        // Guard utama tetap di middleware; ini hanya UX agar non-admin tidak lihat sekilas panel.
+        const { data: { user }, error: sessionError } = await supabase.auth.getUser()
 
         if (sessionError) {
           console.error('Session error:', sessionError)
-          router.replace('/login')
+          router.replace('/admin/login')
           return
         }
 
-        if (!session) {
-          router.replace('/login')
+        if (!user) {
+          router.replace('/admin/login')
           return
         }
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
+          .select('role, status, nama_lengkap')
+          .eq('id', user.id)
           .maybeSingle()
 
         if (profileError || !profile) {
           console.error('Profile query error:', profileError)
           await supabase.auth.signOut()
-          router.replace('/login')
+          router.replace('/admin/login')
           return
         }
 
         if (profile.status === false) {
           await supabase.auth.signOut()
-          router.replace('/login')
+          router.replace('/admin/login')
           return
         }
 
         if (profile.role !== 'admin') {
           await supabase.auth.signOut()
-          router.replace('/login')
+          router.replace('/admin/login')
           return
         }
 
@@ -66,7 +68,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
       } catch (err) {
         console.error('Auth check failed:', err)
-        router.replace('/login')
+        router.replace('/admin/login')
       }
     }
 
@@ -79,7 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.replace('/login')
+    router.replace('/admin/login')
   }
 
   if (isLoginPage) {

@@ -58,9 +58,10 @@ export default function ProfilePage() {
   useEffect(() => {
     let cancelled = false
     async function init() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { router.replace('/login'); return }
-      const { data: p } = await supabase.from('profiles').select('role,nama_lengkap').eq('id', session.user.id).maybeSingle()
+      // getUser() validasi token ke server Auth (lebih aman dari getSession()).
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.replace('/login'); return }
+      const { data: p } = await supabase.from('profiles').select('role,nama_lengkap').eq('id', user.id).maybeSingle()
       const row = p as { role: string; nama_lengkap: string } | null
       if (!cancelled) {
         setRole((row?.role as typeof role) ?? null)

@@ -14,15 +14,17 @@ export function useTeacherAuth() {
     let cancelled = false
     async function init() {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
+        // getUser() validasi token ke server Auth (lebih aman dari getSession()).
+        // Guard utama tetap di middleware; ini hanya UX.
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
           if (!cancelled) router.replace('/login')
           return
         }
         const { data: profile } = await supabase
           .from('profiles')
           .select('nama_lengkap,role,status')
-          .eq('id', session.user.id)
+          .eq('id', user.id)
           .maybeSingle()
         if (!profile || profile.role !== 'guru' || profile.status === false) {
           await supabase.auth.signOut()
@@ -32,7 +34,7 @@ export function useTeacherAuth() {
         if (!cancelled) {
           setTeacherName((profile as { nama_lengkap?: string | null }).nama_lengkap || 'Guru')
           // resolve guruId via API atau langsung select
-          const { data: guru } = await supabase.from('guru').select('id').eq('profile_id', session.user.id).maybeSingle()
+          const { data: guru } = await supabase.from('guru').select('id').eq('profile_id', user.id).maybeSingle()
           setGuruId((guru as { id: string } | null)?.id ?? null)
         }
       } catch (e) {

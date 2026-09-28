@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminCheck, getSupabaseAdmin } from '@/lib/supabase-server'
 import { denyResponse, serverError } from '@/lib/api-admin'
+import { throttle, throttleResponse, clientIp } from '@/lib/api-throttle'
 import { EMAIL_RE } from '@/lib/utils'
 
 const ROLES = ['guru', 'siswa'] as const
@@ -34,6 +35,10 @@ export async function POST(request: Request) {
   try {
     const auth = await adminCheck()
     if (!auth.ok) return denyResponse()
+
+    // Throttle server-side: import massal berat (maks 200 akun) — 10/menit per IP.
+    const limit = throttle(`admin-users-bulk:${clientIp(request)}`, 10, 60_000)
+    if (!limit.ok) return throttleResponse(limit.retryAfterSec)
 
     const body = await request.json()
     const items: BulkItem[] = Array.isArray(body?.users) ? body.users : Array.isArray(body) ? body : []
