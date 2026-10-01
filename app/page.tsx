@@ -18,7 +18,7 @@ export default function Home() {
         <div className="space-y-3">
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 overflow-hidden p-2">
             <Image
-              src="/gambar3.png"
+              src="/logo bn.png"
               alt="Logo"
               width={80}
               height={80}
