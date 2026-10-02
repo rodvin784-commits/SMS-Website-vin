@@ -20,8 +20,8 @@ export default function Home() {
             <Image
               src="/logo bn.png"
               alt="Logo"
-              width={80}
-              height={80}
+              width={150}
+              height={150}
               className="h-full w-full object-contain"
             />
           </div>
