@@ -246,13 +246,13 @@ export function VideoMateriManager() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-gray-900">{editing ? 'Edit Video' : 'Tambah Video Baru'}</h3>
-            <button onClick={() => { setShowForm(false); resetForm() }} className="text-gray-400 hover:text-gray-700">
+            <button onClick={() => { setShowForm(false); resetForm() }} className="text-gray-500 hover:text-gray-700">
               <X className="h-5 w-5" />
             </button>
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Mata Pelajaran</label>
+            <label className="block text-sm font-semibold text-gray-700">Mata Pelajaran</label>
             <select
               value={formMapel}
               onChange={(e) => { setFormMapel(e.target.value); setFormKelas([]) }}
@@ -266,11 +266,11 @@ export function VideoMateriManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Kelas Tujuan</label>
+            <label className="block text-sm font-semibold text-gray-700">Kelas Tujuan</label>
             {!formMapel ? (
-              <p className="text-xs text-gray-400 italic">Pilih mata pelajaran terlebih dahulu.</p>
+              <p className="text-xs text-gray-500 italic">Pilih mata pelajaran terlebih dahulu.</p>
             ) : kelasOptionsForForm.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">Anda belum ditugaskan mengajar kelas untuk mapel ini.</p>
+              <p className="text-xs text-gray-500 italic">Anda belum ditugaskan mengajar kelas untuk mapel ini.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {kelasOptionsForForm.map((k) => (
@@ -293,7 +293,7 @@ export function VideoMateriManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Judul *</label>
+            <label className="block text-sm font-semibold text-gray-700">Judul *</label>
             <input
               value={formJudul}
               onChange={(e) => setFormJudul(e.target.value)}
@@ -303,7 +303,7 @@ export function VideoMateriManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">URL Video * (YouTube, Drive, dll)</label>
+            <label className="block text-sm font-semibold text-gray-700">URL Video * (YouTube, Drive, dll)</label>
             <input
               value={formUrl}
               onChange={(e) => setFormUrl(e.target.value)}
@@ -313,7 +313,7 @@ export function VideoMateriManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">URL Thumbnail (opsional — otomatis dari YouTube jika kosong)</label>
+            <label className="block text-sm font-semibold text-gray-700">URL Thumbnail (opsional — otomatis dari YouTube jika kosong)</label>
             <input
               value={formThumb}
               onChange={(e) => setFormThumb(e.target.value)}
@@ -330,7 +330,7 @@ export function VideoMateriManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Deskripsi</label>
+            <label className="block text-sm font-semibold text-gray-700">Deskripsi</label>
             <textarea
               value={formDeskripsi}
               onChange={(e) => setFormDeskripsi(e.target.value)}
@@ -399,14 +399,14 @@ export function VideoMateriManager() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => bukaEdit(v)}
-                      className="p-2 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
+                      className="p-2 rounded-lg text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"
                       title="Edit"
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(v)}
-                      className="p-2 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50"
+                      className="p-2 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50"
                       title="Hapus"
                     >
                       <Trash2 className="h-4 w-4" />

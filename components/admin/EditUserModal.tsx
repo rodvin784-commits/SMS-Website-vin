@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
 import { useKelasOptions } from '@/hooks/useKelasOptions'
+import { validateUserEdit } from '@/lib/user-validation'
 import type { Profile } from '@/components/admin/UserTable'
 
 interface EditUserFormData {
@@ -70,10 +71,8 @@ export function EditUserModal({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!user) return
-    if (newPassword && newPassword.length < 6) {
-      setLocalError('Password baru minimal 6 karakter')
-      return
-    }
+    const err = validateUserEdit({ nama_lengkap: formData.nama_lengkap, email: formData.email, password: newPassword || undefined })
+    if (err) { setLocalError(err); return }
     setLocalError(null)
     await onSubmit({ ...formData, password: newPassword || undefined, id: user.id })
   }
@@ -111,7 +110,7 @@ export function EditUserModal({
 
           {/* Nama Lengkap */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Nama Lengkap
             </label>
             <Input
@@ -124,7 +123,7 @@ export function EditUserModal({
 
           {/* Email */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Email Sekolah
             </label>
             <Input
@@ -137,7 +136,7 @@ export function EditUserModal({
 
           {/* Role */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Role / Peran
             </label>
             <div className="relative">
@@ -168,7 +167,7 @@ export function EditUserModal({
           {/* NIP (khusus guru) */}
           {formData.role === 'guru' && (
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 NIP <span className="text-gray-400 font-medium normal-case">(opsional)</span>
               </label>
               <Input
@@ -183,7 +182,7 @@ export function EditUserModal({
           {/* NIS (khusus siswa) */}
           {formData.role === 'siswa' && (
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 NIS <span className="text-red-500">*</span>
               </label>
               <Input
@@ -199,14 +198,14 @@ export function EditUserModal({
           {/* Kelas (khusus siswa) */}
           {formData.role === 'siswa' && (
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Kelas <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <select
                   value={formData.kelas_id}
                   onChange={(e) => setFormData((prev) => ({ ...prev, kelas_id: e.target.value }))}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 cursor-pointer disabled:opacity-60"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer disabled:opacity-60"
                   disabled={loadingKelas}
                   required
                 >
@@ -225,7 +224,7 @@ export function EditUserModal({
 
           {/* Status */}
           <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Status
             </label>
             <div className="flex items-center space-x-3">
@@ -254,7 +253,7 @@ export function EditUserModal({
 
           {/* Reset Password (opsional) */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Password Baru <span className="text-gray-400 font-medium normal-case">(opsional)</span>
             </label>
             <Input

@@ -12,7 +12,9 @@ export async function GET() {
     }
 
     const jadwal = await getJadwalKelas(auth.kelasId)
-    return NextResponse.json({ jadwal })
+    const res = NextResponse.json({ jadwal })
+    res.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=30')
+    return res
   } catch (err) {
     console.error('Error GET siswa jadwal:', err)
     return NextResponse.json(

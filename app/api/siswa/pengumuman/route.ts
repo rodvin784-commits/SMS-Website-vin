@@ -12,7 +12,9 @@ export async function GET() {
     }
 
     const pengumuman = await getPengumumanKelas(auth.kelasId)
-    return NextResponse.json({ pengumuman })
+    const res = NextResponse.json({ pengumuman })
+    res.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=30')
+    return res
   } catch (err) {
     console.error('Error GET siswa pengumuman:', err)
     return NextResponse.json(

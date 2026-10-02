@@ -12,7 +12,9 @@ export async function GET() {
     }
 
     const materi = await getMateriKelas(auth.kelasId)
-    return NextResponse.json({ materi })
+    const res = NextResponse.json({ materi })
+    res.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=30')
+    return res
   } catch (err) {
     console.error('Error GET siswa materi:', err)
     return NextResponse.json(

@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
-import { Plus, Pencil, Trash2, Archive, ArchiveRestore, BookOpen, Filter, Search, CheckCircle2, Users, GraduationCap, UserCog, Eye } from 'lucide-react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import { Plus, Pencil, Trash2, Archive, ArchiveRestore, BookOpen, Filter, Search, CheckCircle2, Users, GraduationCap, UserCog, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
 import { useFeedback } from '@/hooks/useFeedback'
+import { useAdminMutate } from '@/hooks/useAdminMutate'
 
 interface GuruPengampu {
   guru_id: string
@@ -34,6 +36,9 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
   const [data, setData] = useState<MataPelajaranData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearch = useDebouncedValue(searchQuery, 300)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   // Modal states
@@ -44,10 +49,6 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
   const [detailMode, setDetailMode] = useState<'view' | 'manage'>('view')
   const [detailItem, setDetailItem] = useState<MataPelajaranData | null>(null)
   const [editingItem, setEditingItem] = useState<MataPelajaranData | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  // Feedback level halaman (auto-dismiss)
-  const { feedback, showFeedback, setFeedback } = useFeedback()
 
   // Refresh trigger: naikkan angka untuk memuat ulang data (dipakai setelah mutasi)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -55,6 +56,9 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
     setRefreshKey((k) => k + 1)
     if (onDataChanged) onDataChanged()
   }, [onDataChanged])
+
+  // Feedback + mutate DRY untuk CRUD utama (penugasan tetap manual karena endpoint berbeda)
+  const { feedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/mata-pelajaran', refreshData)
 
   // Load data on mount, saat refresh diminta (skeleton hanya tampil di load awal)
   useEffect(() => {
@@ -242,7 +246,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
   // Filter data
   const filteredData = data
     .filter((item) => {
-      const searchLower = searchQuery.toLowerCase()
+      const searchLower = debouncedSearch.toLowerCase()
       const matchesSearch =
         item.kode.toLowerCase().includes(searchLower) ||
         item.nama.toLowerCase().includes(searchLower) ||
@@ -252,6 +256,13 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       if (statusFilter === 'inactive') matchesStatus = item.status === false
       return matchesSearch && matchesStatus
     })
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, statusFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize))
+  const pagedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredData.slice(start, start + pageSize)
+  }, [filteredData, currentPage])
 
   // Buka modal detail — mode 'view' (mata, read-only) atau 'manage' (kelola penugasan)
   const openDetail = useCallback(async (item: MataPelajaranData, mode: 'view' | 'manage' = 'view') => {
@@ -280,97 +291,37 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
     fetchPenugasan(item.id)
   }, [fetchPenugasan, setDetailFeedback])
 
-  // Create handler
+  // Create handler — DRY via mutate (tetap buka detail manage setelah sukses)
   const handleCreate = useCallback(async (formData: { kode: string; nama: string; deskripsi?: string }) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/mata-pelajaran', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menambahkan mata pelajaran')
-      }
-
-      showFeedback('success', 'Mata pelajaran berhasil ditambahkan!')
+      const result = await mutate('POST', formData) as MataPelajaranData & { id: string }
       setIsCreateModalOpen(false)
-      await refreshData()
-
-      // Buka detail view dengan data lengkap
       setTimeout(() => {
         openDetail(result as MataPelajaranData, 'manage')
       }, 300)
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, openDetail, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate, openDetail])
 
   // Update handler
   const handleUpdate = useCallback(async (id: string, formData: { kode?: string; nama?: string; deskripsi?: string | null; status?: boolean }) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/mata-pelajaran', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...formData }),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal memperbarui mata pelajaran')
-      }
-
-      showFeedback('success', 'Mata pelajaran berhasil diperbarui!')
+      await mutate('PUT', { id, ...formData })
       setIsEditModalOpen(false)
       setEditingItem(null)
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate])
 
   // Nonaktifkan / Hapus handler
   const handleNonaktifkan = useCallback(async (item: MataPelajaranData) => {
     if (item.status === true) {
-      // Konfirmasi nonaktifkan
       if (!confirm(`Apakah Anda yakin ingin menonaktifkan "${item.nama}"?\n\nMata pelajaran yang dinonaktifkan tidak akan muncul di pilihan penugasan guru, tetapi penugasan yang sudah ada tetap tersimpan.`)) return
     } else {
-      // Konfirmasi hapus permanen
       if (!confirm(`Hapus permanen "${item.nama}"?\n\nTindakan ini tidak dapat dibatalkan.`)) return
     }
-
-    setFeedback(null)
-
     try {
-      const res = await fetch(`/api/admin/mata-pelajaran?id=${item.id}`, {
-        method: 'DELETE',
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal memproses mata pelajaran')
-      }
-
-      showFeedback('success', result.message || 'Berhasil diproses')
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    }
-  }, [refreshData, showFeedback, setFeedback])
+      await mutate('DELETE', undefined, `?id=${item.id}`)
+    } catch {}
+  }, [mutate])
 
   // Format tanggal
   const formatDate = (dateStr: string) => {
@@ -407,7 +358,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total</span>
+            <span className="text-[13px] font-semibold text-gray-500">Total</span>
             <div className="h-8 w-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
               <BookOpen className="h-4 w-4" />
             </div>
@@ -418,7 +369,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
 
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Aktif</span>
+            <span className="text-[13px] font-semibold text-gray-500">Aktif</span>
             <div className="h-8 w-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
               <CheckCircle2 className="h-4 w-4" />
             </div>
@@ -431,7 +382,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
 
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Nonaktif</span>
+            <span className="text-[13px] font-semibold text-gray-500">Nonaktif</span>
             <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
               <Filter className="h-4 w-4" />
             </div>
@@ -458,7 +409,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
               placeholder="Cari kode, nama, atau guru..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
             />
           </div>
 
@@ -520,7 +471,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredData.map((item) => (
+                {pagedData.map((item) => (
                   <tr
                     key={item.id}
                     className="hover:bg-gray-50/80 transition-colors group cursor-pointer"
@@ -619,6 +570,15 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
           </div>
         </div>
       )}
+      {filteredData.length > 20 && (
+        <div className="flex items-center justify-between bg-white rounded-xl p-3 border border-gray-100">
+          <span className="text-xs text-gray-500">Halaman {currentPage} / {totalPages} · {filteredData.length} hasil</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}><ChevronLeft className="h-4 w-4" /> Prev</Button>
+            <Button variant="secondary" size="sm" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>Next <ChevronRight className="h-4 w-4" /></Button>
+          </div>
+        </div>
+      )}
 
       {/* ===== DETAIL MODAL (view = read-only, manage = kelola penugasan) ===== */}
       <Modal
@@ -651,7 +611,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
             {/* Deskripsi */}
             {detailItem.deskripsi && (
               <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Deskripsi</p>
+                <p className="text-sm font-semibold text-gray-600 mb-2">Deskripsi</p>
                 <p className="text-sm text-gray-700 leading-relaxed">{detailItem.deskripsi}</p>
               </div>
             )}
@@ -663,7 +623,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
 
             {/* Guru Pengampu — Interactive */}
             <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <p className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Guru Pengampu ({penugasanAssignments.length})
               </p>
@@ -747,7 +707,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
               {/* Form Tambah Penugasan — hanya di mode kelola */}
               {detailMode === 'manage' && detailItem.status && (
                 <div className="mt-4 bg-blue-50/60 border border-blue-100 rounded-xl p-4">
-                  <p className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-3">Tambah Penugasan</p>
+                  <p className="text-sm font-bold text-blue-700 mb-3">Tambah Penugasan</p>
                   <div className="flex flex-col sm:flex-row gap-3">
                     <select
                       value={newGuruId}
@@ -820,7 +780,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
 
             {/* Daftar Kelas */}
             <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <p className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-2">
                 <GraduationCap className="h-4 w-4" />
                 Kelas ({detailItem.kelas_list.length})
               </p>
@@ -880,7 +840,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
           })
         }} className="space-y-4 pt-2">
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Kode <span className="text-red-500">*</span>
             </label>
             <Input
@@ -894,7 +854,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Nama <span className="text-red-500">*</span>
             </label>
             <Input
@@ -906,14 +866,14 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Deskripsi
             </label>
             <textarea
               name="deskripsi"
               rows={3}
               placeholder="Deskripsi singkat tentang mata pelajaran ini (opsional)"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
             />
           </div>
 
@@ -958,7 +918,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Kode
               </label>
               <Input
@@ -971,7 +931,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Nama
               </label>
               <Input
@@ -983,7 +943,7 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Deskripsi
               </label>
               <textarea
@@ -991,12 +951,12 @@ export function MataPelajaranManager({ onDataChanged }: MataPelajaranManagerProp
                 rows={3}
                 defaultValue={editingItem.deskripsi ?? ''}
                 placeholder="Deskripsi singkat tentang mata pelajaran ini (opsional)"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Status
               </label>
               <div className="flex items-center space-x-3">

@@ -12,7 +12,9 @@ export async function GET() {
     }
 
     const nilai = await getNilaiSiswa(auth.siswaId)
-    return NextResponse.json({ nilai })
+    const res = NextResponse.json({ nilai })
+    res.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=30')
+    return res
   } catch (err) {
     console.error('Error GET siswa nilai:', err)
     return NextResponse.json(

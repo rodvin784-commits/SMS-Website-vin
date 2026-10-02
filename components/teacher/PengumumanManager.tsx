@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   CalendarDays,
   GraduationCap,
   Megaphone,
   Pencil,
   Plus,
+  Search,
   Send,
   Trash2,
   X,
@@ -37,6 +38,8 @@ export function PengumumanManager() {
   const [formIsi, setFormIsi] = useState('')
   const [formKelas, setFormKelas] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [cari, setCari] = useState('')
+  const [filterKelas, setFilterKelas] = useState('semua')
 
   useEffect(() => {
     let cancelled = false
@@ -165,6 +168,18 @@ export function PengumumanManager() {
     return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
   }
 
+  // Hasil saring: teks + kelas (kosong = semua)
+  const tampil = useMemo(() => {
+    const q = cari.trim().toLowerCase()
+    return pengumuman.filter((p) => {
+      if (filterKelas !== 'semua' && !p.kelas.some((k) => k.kelas_id === filterKelas)) return false
+      if (!q) return true
+      return p.judul.toLowerCase().includes(q) || (p.isi ?? '').toLowerCase().includes(q)
+    })
+  }, [pengumuman, cari, filterKelas])
+
+  const filterAktif = cari.trim() !== '' || filterKelas !== 'semua'
+
   if (loading) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-16 flex flex-col items-center justify-center space-y-3">
@@ -187,54 +202,85 @@ export function PengumumanManager() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">{pengumuman.length} pengumuman dibuat</p>
+      {/* Toolbar: cari + filter kiri, aksi kanan */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" aria-hidden />
+            <input
+              type="search"
+              value={cari}
+              onChange={(e) => setCari(e.target.value)}
+              placeholder="Cari pengumuman…"
+              aria-label="Cari pengumuman"
+              className="w-full sm:w-56 rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-800 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+            />
+          </div>
+          <select
+            value={filterKelas}
+            onChange={(e) => setFilterKelas(e.target.value)}
+            aria-label="Filter kelas"
+            className="rounded-xl border border-gray-200 bg-white py-2.5 px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+          >
+            <option value="semua">Semua Kelas</option>
+            {kelasDiajar.map((k) => (
+              <option key={k.kelas_id} value={k.kelas_id}>{k.nama_kelas}</option>
+            ))}
+          </select>
+        </div>
         <button
           onClick={() => { resetForm(); setShowForm(true) }}
           disabled={kelasDiajar.length === 0}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4" aria-hidden />
           Buat Pengumuman
         </button>
       </div>
+      <p className="text-sm text-gray-600 -mt-3">
+        {filterAktif
+          ? `Menampilkan ${tampil.length} dari ${pengumuman.length} pengumuman`
+          : `${pengumuman.length} pengumuman dibuat`}
+      </p>
 
       {showForm && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-gray-900">{editing ? 'Edit Pengumuman' : 'Pengumuman Baru'}</h3>
-            <button onClick={() => { setShowForm(false); resetForm() }} className="text-gray-400 hover:text-gray-700">
+            <button onClick={() => { setShowForm(false); resetForm() }} className="text-gray-500 hover:text-gray-700">
               <X className="h-5 w-5" />
             </button>
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Judul *</label>
+            <label htmlFor="pengumuman-judul" className="block text-sm font-semibold text-gray-700">Judul *</label>
             <input
+              id="pengumuman-judul"
               value={formJudul}
               onChange={(e) => setFormJudul(e.target.value)}
               placeholder="cth: Remidi UTS Matematika"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">Isi *</label>
+            <label htmlFor="pengumuman-isi" className="block text-sm font-semibold text-gray-700">Isi *</label>
             <textarea
+              id="pengumuman-isi"
               value={formIsi}
               onChange={(e) => setFormIsi(e.target.value)}
               rows={5}
               placeholder="Tulis isi pengumuman untuk siswa..."
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Kelas Tujuan ({kelasDiajar.length} kelas Anda)
             </label>
             {kelasDiajar.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">Anda belum ditugaskan mengajar kelas mana pun.</p>
+              <p className="text-xs text-gray-500 italic">Anda belum ditugaskan mengajar kelas mana pun.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {kelasDiajar.map((k) => (
@@ -291,40 +337,58 @@ export function PengumumanManager() {
           <h3 className="text-lg font-bold text-gray-900 mb-1">Belum ada pengumuman</h3>
           <p className="text-sm text-gray-500">Buat pengumuman pertama untuk kelas Anda.</p>
         </div>
+      ) : tampil.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-50 mb-4">
+            <Search className="h-8 w-8 text-gray-300" aria-hidden />
+          </div>
+          <h3 className="text-base font-bold text-gray-900 mb-1">Tidak ada hasil</h3>
+          <p className="text-sm text-gray-600">Coba kata kunci atau filter kelas lain.</p>
+          <button
+            onClick={() => { setCari(''); setFilterKelas('semua') }}
+            className="mt-4 px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50"
+          >
+            Atur Ulang
+          </button>
+        </div>
       ) : (
         <div className="space-y-4">
-          {pengumuman.map((p) => (
-            <div key={p.id} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-3">
+          {tampil.map((p) => (
+            <article key={p.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 transition-shadow hover:shadow-md">
               <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1 min-w-0">
+                <div className="space-y-1.5 min-w-0">
                   <h3 className="font-bold text-gray-900">{p.judul}</h3>
-                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    {formatTanggal(p.created_at)} · {p.kelas.map((k) => k.nama_kelas).join(', ') || 'Tanpa kelas'}
+                  <p className="text-xs text-gray-600 flex items-center gap-1.5">
+                    <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    {formatTanggal(p.created_at)}
+                    <span aria-hidden>•</span>
+                    <span className="truncate">{p.kelas.map((k) => k.nama_kelas).join(', ') || 'Tanpa kelas'}</span>
                   </p>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                   <button
                     onClick={() => bukaEdit(p)}
-                    className="p-2 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
                     title="Edit"
+                    aria-label={`Edit pengumuman ${p.judul}`}
+                    className="p-2 rounded-lg text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                   >
-                    <Pencil className="h-4 w-4" />
+                    <Pencil className="h-4 w-4" aria-hidden />
                   </button>
                   <button
                     onClick={() => handleDelete(p)}
-                    className="p-2 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50"
                     title="Hapus"
+                    aria-label={`Hapus pengumuman ${p.judul}`}
+                    className="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
               </div>
 
               {p.isi && (
-                <p className="text-sm text-gray-600 whitespace-pre-line">{p.isi}</p>
+                <p className="mt-3 text-sm leading-relaxed text-gray-700 whitespace-pre-line line-clamp-3">{p.isi}</p>
               )}
-            </div>
+            </article>
           ))}
         </div>
       )}

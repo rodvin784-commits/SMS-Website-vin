@@ -442,3 +442,7 @@ Panel guru ditulis ulang sepenuhnya mengikuti struktur database baru (lihat `DAT
 | File | Isi |
 |---|---|
 | `supabase/migrations/20260922_add_jawaban_teks_to_pengumpulan_tugas.sql` | Kolom `jawaban_teks TEXT` di `pengumpulan_tugas` |
+
+### 2026-09-28 — Pesan error OAuth di halaman login guru
+
+Halaman `/login` (`app/login/page.tsx`) kini membaca `?error=` dari `/auth/callback` dan menampilkan pesan ramah (mis. `siswa_gunakan_apk` → siswa wajib via APK, `akun_belum_terdaftar`, `domain_harus_smk_belajar`). Sebelumnya parameter diabaikan — user yang ditolak hanya melihat form guru tanpa penjelasan. Detail alur OAuth lengkap: `UPDATE_BERIKUT.md` §13.

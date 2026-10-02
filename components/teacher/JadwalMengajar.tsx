@@ -131,7 +131,7 @@ export function JadwalMengajar() {
                 <h3 className="text-sm font-bold text-gray-900">{hari}</h3>
                 <span
                   className={`
-                    text-xs font-bold ${entries.length > 0 ? 'text-emerald-600' : 'text-gray-400'}
+                    text-xs font-bold ${entries.length > 0 ? 'text-emerald-600' : 'text-gray-500'}
                   `}
                 >
                   {entries.length} sesi
@@ -140,7 +140,7 @@ export function JadwalMengajar() {
 
               <div className="p-3 space-y-2.5 min-h-[120px]">
                 {entries.length === 0 ? (
-                  <p className="text-xs text-gray-400 italic text-center pt-6">Belum ada jadwal</p>
+                  <p className="text-xs text-gray-500 italic text-center pt-6">Belum ada jadwal</p>
                 ) : (
                   entries.map((entry) => (
                     <div
@@ -164,7 +164,7 @@ export function JadwalMengajar() {
                         </div>
                       </div>
                       {entry.ruangan && (
-                        <p className="flex items-center gap-1.5 text-xs text-gray-400">
+                        <p className="flex items-center gap-1.5 text-xs text-gray-500">
                           <MapPin className="h-3 w-3 flex-shrink-0" />
                           {entry.ruangan}
                         </p>

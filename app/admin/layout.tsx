@@ -1,56 +1,63 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
-import { ShieldCheck, LayoutDashboard, Users, GraduationCap, BookOpen, Calendar, Building2 } from 'lucide-react'
+import { ShieldCheck, LayoutDashboard, Users, GraduationCap, BookOpen, Calendar, Building2, UserCheck } from 'lucide-react'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [loading, setLoading] = useState(true)
   const [adminName, setAdminName] = useState('Administrator')
 
+  // Login admin harus standalone tanpa AppShell (tanpa sidebar/header)
+  const isLoginPage = pathname?.startsWith('/admin/login')
+
   useEffect(() => {
+    if (isLoginPage) return
     let cancelled = false
 
     async function checkAdminSession() {
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        // getUser() validasi token ke server Auth (lebih aman dari getSession()).
+        // Guard utama tetap di middleware; ini hanya UX agar non-admin tidak lihat sekilas panel.
+        const { data: { user }, error: sessionError } = await supabase.auth.getUser()
 
         if (sessionError) {
           console.error('Session error:', sessionError)
-          router.replace('/login')
+          router.replace('/admin/login')
           return
         }
 
-        if (!session) {
-          router.replace('/login')
+        if (!user) {
+          router.replace('/admin/login')
           return
         }
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
+          .select('role, status, nama_lengkap')
+          .eq('id', user.id)
           .maybeSingle()
 
         if (profileError || !profile) {
           console.error('Profile query error:', profileError)
           await supabase.auth.signOut()
-          router.replace('/login')
+          router.replace('/admin/login')
           return
         }
 
         if (profile.status === false) {
           await supabase.auth.signOut()
-          router.replace('/login')
+          router.replace('/admin/login')
           return
         }
 
         if (profile.role !== 'admin') {
           await supabase.auth.signOut()
-          router.replace('/login')
+          router.replace('/admin/login')
           return
         }
 
@@ -61,7 +68,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
       } catch (err) {
         console.error('Auth check failed:', err)
-        router.replace('/login')
+        router.replace('/admin/login')
       }
     }
 
@@ -70,31 +77,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => {
       cancelled = true
     }
-  }, [router])
+  }, [router, isLoginPage])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.replace('/login')
+    router.replace('/admin/login')
+  }
+
+  if (isLoginPage) {
+    return <>{children}</>
   }
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center space-y-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-          <p className="text-sm font-medium text-gray-400">Memuat Panel Admin...</p>
+          <p className="text-sm font-medium text-gray-600">Memuat Panel Admin...</p>
         </div>
       </div>
     )
   }
 
   const navItems = [
-    { href: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { href: '/admin/users', icon: Users, label: 'Manajemen Pengguna' },
-    { href: '/admin/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran' },
-    { href: '/admin/jurusan', icon: Building2, label: 'Data Jurusan' },
-    { href: '/admin/kelas', icon: GraduationCap, label: 'Data Kelas' },
-    { href: '/admin/jadwal', icon: Calendar, label: 'Jadwal Pelajaran' },
+    { href: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', description: 'Ringkasan & statistik sekolah', category: 'Utama' },
+    { href: '/admin/users', icon: Users, label: 'Manajemen Pengguna', description: 'Kelola akun guru & siswa', category: 'Manajemen' },
+    { href: '/admin/mata-pelajaran', icon: BookOpen, label: 'Mata Pelajaran', description: 'Mapel & penugasan guru', category: 'Akademik' },
+    { href: '/admin/jurusan', icon: Building2, label: 'Data Jurusan', description: 'Jurusan & program keahlian', category: 'Akademik' },
+    { href: '/admin/kelas', icon: GraduationCap, label: 'Data Kelas', description: 'Kelas X–XII & wali kelas', category: 'Akademik' },
+    { href: '/admin/jadwal', icon: Calendar, label: 'Jadwal Pelajaran', description: 'Jadwal per kelas per hari', category: 'Akademik' },
+    { href: '/admin/presensi', icon: UserCheck, label: 'Rekap Presensi', description: 'Rekap kehadiran bulanan', category: 'Akademik' },
   ]
 
   return (

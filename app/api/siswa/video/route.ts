@@ -12,7 +12,9 @@ export async function GET() {
     }
 
     const video = await getVideoKelas(auth.kelasId)
-    return NextResponse.json({ video })
+    const res = NextResponse.json({ video })
+    res.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=30')
+    return res
   } catch (err) {
     console.error('Error GET siswa video:', err)
     return NextResponse.json(

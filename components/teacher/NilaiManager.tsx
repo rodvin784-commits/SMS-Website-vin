@@ -96,7 +96,7 @@ export function NilaiManager() {
 
   const selected = assignments.find((a) => a.id === selectedId)
 
-  // Muat roster + nilai saat penugasan/semester berubah
+  // Muat roster + nilai saat penugasan/semester berubah (debounce 400ms untuk tahunAjaran ketik vs pilih)
   useEffect(() => {
     const asg = assignments.find((a) => a.id === selectedId)
     if (!asg) return
@@ -105,35 +105,37 @@ export function NilaiManager() {
     const kelasId = asg.kelas_id
     const taDefault = asg.tahun_ajaran || ''
 
-    async function init() {
-      setLoadingRoster(true)
-      try {
-        const params = new URLSearchParams({
-          mata_pelajaran_id: mapelId,
-          kelas_id: kelasId,
-          semester,
-          tahun_ajaran: tahunAjaran || taDefault,
-        })
-        const res = await fetch(`/api/teacher/nilai?${params.toString()}`)
-        const data = await res.json().catch(() => null)
-        if (data?.siswa) {
-          const list = data.siswa as NilaiSiswa[]
-          setSiswa(list)
-          setStatusMsg(null)
-        } else {
+    const timer = setTimeout(() => {
+      async function init() {
+        setLoadingRoster(true)
+        try {
+          const params = new URLSearchParams({
+            mata_pelajaran_id: mapelId,
+            kelas_id: kelasId,
+            semester,
+            tahun_ajaran: tahunAjaran || taDefault,
+          })
+          const res = await fetch(`/api/teacher/nilai?${params.toString()}`)
+          const data = await res.json().catch(() => null)
+          if (data?.siswa) {
+            const list = data.siswa as NilaiSiswa[]
+            setSiswa(list)
+            setStatusMsg(null)
+          } else {
+            setSiswa([])
+            setStatusMsg({ type: 'error', text: data?.error ?? 'Gagal memuat nilai.' })
+          }
+        } catch (err) {
+          console.error('Gagal memuat nilai:', err)
           setSiswa([])
-          setStatusMsg({ type: 'error', text: data?.error ?? 'Gagal memuat nilai.' })
+          setStatusMsg({ type: 'error', text: 'Terjadi kesalahan saat memuat nilai.' })
+        } finally {
+          setLoadingRoster(false)
         }
-      } catch (err) {
-        console.error('Gagal memuat nilai:', err)
-        setSiswa([])
-        setStatusMsg({ type: 'error', text: 'Terjadi kesalahan saat memuat nilai.' })
-      } finally {
-        setLoadingRoster(false)
       }
-    }
-
-    void init()
+      void init()
+    }, 400)
+    return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, semester, tahunAjaran])
 
@@ -269,7 +271,7 @@ export function NilaiManager() {
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-1.5 md:col-span-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Mapel & Kelas
             </label>
             <select
@@ -285,7 +287,7 @@ export function NilaiManager() {
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Semester
             </label>
             <select
@@ -300,7 +302,7 @@ export function NilaiManager() {
         </div>
         {tahunAjaranOptions.length > 0 && (
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Tahun Ajaran
             </label>
             <select
@@ -350,7 +352,7 @@ export function NilaiManager() {
               <h2 className="text-base font-bold text-gray-900">
                 {selected.mapel_nama ?? 'Mata Pelajaran'}
                 {tab !== 'rapor' && (
-                  <span className="text-gray-400 font-semibold"> · {KOMPONEN.find((k) => k.key === tab)?.label}</span>
+                  <span className="text-gray-500 font-semibold"> · {KOMPONEN.find((k) => k.key === tab)?.label}</span>
                 )}
               </h2>
               <p className="text-xs text-gray-500">
@@ -436,7 +438,7 @@ export function NilaiManager() {
                     const p = s.nilai_akhir !== null ? predikat(s.nilai_akhir) : null
                     return (
                       <tr key={s.id} className="hover:bg-gray-50/80 transition-colors">
-                        <td className="py-3 px-6 text-sm text-gray-400 font-medium">{idx + 1}</td>
+                        <td className="py-3 px-6 text-sm text-gray-500 font-medium">{idx + 1}</td>
                         <td className="py-3 px-6">
                           <div className="flex items-center gap-3">
                             <div className="h-9 w-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm uppercase">
@@ -444,7 +446,7 @@ export function NilaiManager() {
                             </div>
                             <div>
                               <span className="font-medium text-gray-900 text-sm">{s.nama_lengkap}</span>
-                              <p className="text-xs text-gray-400">NIS {s.nis}</p>
+                              <p className="text-xs text-gray-500">NIS {s.nis}</p>
                             </div>
                           </div>
                         </td>
@@ -455,7 +457,7 @@ export function NilaiManager() {
                                 <span
                                   className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
                                     s.nilai[k.key] === null || s.nilai[k.key] === undefined
-                                      ? 'bg-gray-100 text-gray-400'
+                                      ? 'bg-gray-100 text-gray-500'
                                       : 'bg-emerald-50 text-emerald-700'
                                   }`}
                                 >
@@ -474,7 +476,7 @@ export function NilaiManager() {
                                   {p.label}
                                 </span>
                               ) : (
-                                <span className="text-sm text-gray-400 italic">Belum dinilai</span>
+                                <span className="text-sm text-gray-500 italic">Belum dinilai</span>
                               )}
                             </td>
                           </>
@@ -503,7 +505,7 @@ export function NilaiManager() {
 
             {tab !== 'rapor' && (
               <div className="px-6 py-4 border-t border-gray-100 flex flex-wrap items-center justify-end gap-3">
-                <p className="text-xs text-gray-400 mr-auto">
+                <p className="text-xs text-gray-500 mr-auto">
                   Nilai akhir = 30% Tugas + 30% UTS + 40% UAS (komponen kosong tidak dihitung).
                 </p>
                 <button

@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
-import { StatCard } from '@/components/ui'
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { StatCard } from "@/components/ui";
 import {
   Users,
   GraduationCap,
@@ -13,184 +13,206 @@ import {
   RefreshCw,
   Clock,
   Filter,
-} from 'lucide-react'
+  UserCheck,
+} from "lucide-react";
 
 interface KelasDist {
-  tingkat: number
-  count: number
-  pct: number
+  tingkat: number;
+  count: number;
+  pct: number;
 }
 
 interface JurusanDist {
-  id: string
-  nama: string
-  count: number
-  pct: number
+  id: string;
+  nama: string;
+  count: number;
+  pct: number;
 }
 
 interface KelasBaris {
-  id: string
-  tingkat: number
-  tahun_ajaran: string
-  jurusan_id: string | null
-  jurusan: { id: string; kode: string; nama: string } | null
+  id: string;
+  tingkat: number;
+  tahun_ajaran: string;
+  jurusan_id: string | null;
+  jurusan: { id: string; kode: string; nama: string } | null;
 }
 
 interface ActivityItem {
-  id: string
-  type: 'user' | 'kelas' | 'penugasan'
-  title: string
-  subtitle: string
-  time: string
+  id: string;
+  type: "user" | "kelas" | "penugasan";
+  title: string;
+  subtitle: string;
+  time: string;
 }
 
 interface DashboardResponse {
   stats: {
-    totalGuru: number
-    totalSiswa: number
-    totalMapel: number
-    totalKelas: number
-    totalJurusan: number
-  }
-  kelas: KelasBaris[]
-  jurusan: { id: string; kode: string; nama: string }[]
-  tahun_ajaran: string[]
-  activity: ActivityItem[]
+    totalGuru: number;
+    totalSiswa: number;
+    totalMapel: number;
+    totalKelas: number;
+    totalJurusan: number;
+  };
+  presensi?: {
+    tanggal: string;
+    hadir: number;
+    izin: number;
+    sakit: number;
+    alpha: number;
+    total: number;
+  };
+  kelas: KelasBaris[];
+  jurusan: { id: string; kode: string; nama: string }[];
+  tahun_ajaran: string[];
+  activity: ActivityItem[];
 }
 
 const activityIcon = {
-  user: { icon: UserPlus, text: 'text-blue-600', bg: 'bg-blue-100' },
-  kelas: { icon: GraduationCap, text: 'text-purple-600', bg: 'bg-purple-100' },
-  penugasan: { icon: BookOpen, text: 'text-emerald-600', bg: 'bg-emerald-100' },
-} as const
+  user: { icon: UserPlus, text: "text-blue-600", bg: "bg-blue-100" },
+  kelas: { icon: GraduationCap, text: "text-purple-600", bg: "bg-purple-100" },
+  penugasan: { icon: BookOpen, text: "text-emerald-600", bg: "bg-emerald-100" },
+} as const;
 
 function formatRelative(time: string): string {
-  const diff = Date.now() - new Date(time).getTime()
-  const min = Math.floor(diff / 60000)
-  if (min < 1) return 'baru saja'
-  if (min < 60) return `${min} menit lalu`
-  const hours = Math.floor(min / 60)
-  if (hours < 24) return `${hours} jam lalu`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days} hari lalu`
-  return new Date(time).toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+  const diff = Date.now() - new Date(time).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "baru saja";
+  if (min < 60) return `${min} menit lalu`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} hari lalu`;
+  return new Date(time).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function formatTanggalLengkap(time: string): string {
-  return new Date(time).toLocaleString('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return new Date(time).toLocaleString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function AdminDashboardPage() {
-  const [totalGuru, setTotalGuru] = useState<number | string>('--')
-  const [totalSiswa, setTotalSiswa] = useState<number | string>('--')
-  const [totalMapel, setTotalMapel] = useState<number | string>('--')
-  const [kelasList, setKelasList] = useState<KelasBaris[]>([])
-  const [jurusanOptions, setJurusanOptions] = useState<{ id: string; kode: string; nama: string }[]>([])
-  const [tahunAjaranOptions, setTahunAjaranOptions] = useState<string[]>([])
-  const [activity, setActivity] = useState<ActivityItem[]>([])
-  const [lastUpdated, setLastUpdated] = useState<string>('--')
-  const [loading, setLoading] = useState(true)
+  const [totalGuru, setTotalGuru] = useState<number | string>("--");
+  const [totalSiswa, setTotalSiswa] = useState<number | string>("--");
+  const [totalMapel, setTotalMapel] = useState<number | string>("--");
+  const [presensiHariIni, setPresensiHariIni] = useState<
+    DashboardResponse["presensi"] | null
+  >(null);
+  const [kelasList, setKelasList] = useState<KelasBaris[]>([]);
+  const [jurusanOptions, setJurusanOptions] = useState<
+    { id: string; kode: string; nama: string }[]
+  >([]);
+  const [tahunAjaranOptions, setTahunAjaranOptions] = useState<string[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<string>("--");
+  const [loading, setLoading] = useState(true);
 
-  const [tahunAjaranFilter, setTahunAjaranFilter] = useState('all')
-  const [jurusanFilter, setJurusanFilter] = useState('all')
+  const [tahunAjaranFilter, setTahunAjaranFilter] = useState("all");
+  const [jurusanFilter, setJurusanFilter] = useState("all");
 
   const loadData = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/dashboard')
+      const res = await fetch("/api/admin/dashboard");
       if (!res.ok) {
-        throw new Error('Gagal memuat data dashboard')
+        throw new Error("Gagal memuat data dashboard");
       }
-      const data = (await res.json()) as DashboardResponse
-      setTotalGuru(data.stats.totalGuru)
-      setTotalSiswa(data.stats.totalSiswa)
-      setTotalMapel(data.stats.totalMapel)
-      setKelasList(data.kelas)
-      setJurusanOptions(data.jurusan)
-      setTahunAjaranOptions(data.tahun_ajaran)
-      setActivity(data.activity)
-      setLastUpdated(formatTanggalLengkap(new Date().toISOString()))
+      const data = (await res.json()) as DashboardResponse;
+      setTotalGuru(data.stats.totalGuru);
+      setTotalSiswa(data.stats.totalSiswa);
+      setTotalMapel(data.stats.totalMapel);
+      setPresensiHariIni(data.presensi ?? null);
+      setKelasList(data.kelas);
+      setJurusanOptions(data.jurusan);
+      setTahunAjaranOptions(data.tahun_ajaran);
+      setActivity(data.activity);
+      setLastUpdated(formatTanggalLengkap(new Date().toISOString()));
     } catch (err) {
-      console.error('Error fetching dashboard:', err)
+      console.error("Error fetching dashboard:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     async function init() {
-      await loadData()
+      await loadData();
     }
 
-    void init()
-  }, [loadData])
+    void init();
+  }, [loadData]);
 
   const handleRefresh = useCallback(() => {
-    setLoading(true)
-    void loadData()
-  }, [loadData])
+    setLoading(true);
+    void loadData();
+  }, [loadData]);
 
   const filteredKelas = useMemo(() => {
     return kelasList.filter(
       (k) =>
-        (tahunAjaranFilter === 'all' || k.tahun_ajaran === tahunAjaranFilter) &&
-        (jurusanFilter === 'all' || k.jurusan_id === jurusanFilter)
-    )
-  }, [kelasList, tahunAjaranFilter, jurusanFilter])
+        (tahunAjaranFilter === "all" || k.tahun_ajaran === tahunAjaranFilter) &&
+        (jurusanFilter === "all" || k.jurusan_id === jurusanFilter),
+    );
+  }, [kelasList, tahunAjaranFilter, jurusanFilter]);
 
-  const totalKelasAktif = kelasList.length
+  const totalKelasAktif = kelasList.length;
 
   const tingkatDistribution = useMemo((): KelasDist[] => {
-    const counts: Record<number, number> = {}
+    const counts: Record<number, number> = {};
     filteredKelas.forEach((k) => {
-      counts[k.tingkat] = (counts[k.tingkat] ?? 0) + 1
-    })
-    const denom = filteredKelas.length || 1
+      counts[k.tingkat] = (counts[k.tingkat] ?? 0) + 1;
+    });
+    const denom = filteredKelas.length || 1;
     return ([10, 11, 12] as const).map((tingkat) => ({
       tingkat,
       count: counts[tingkat] ?? 0,
       pct: Math.round(((counts[tingkat] ?? 0) / denom) * 100),
-    }))
-  }, [filteredKelas])
+    }));
+  }, [filteredKelas]);
 
   const jurusanDistribution = useMemo((): JurusanDist[] => {
-    const map = new Map<string, JurusanDist>()
+    const map = new Map<string, JurusanDist>();
     filteredKelas.forEach((k) => {
-      const id = k.jurusan_id ?? 'tanpa-jurusan'
-      const nama = k.jurusan?.nama ?? 'Tanpa Jurusan'
-      const existing = map.get(id)
+      const id = k.jurusan_id ?? "tanpa-jurusan";
+      const nama = k.jurusan?.nama ?? "Tanpa Jurusan";
+      const existing = map.get(id);
       if (existing) {
-        existing.count += 1
+        existing.count += 1;
       } else {
-        map.set(id, { id, nama, count: 1, pct: 0 })
+        map.set(id, { id, nama, count: 1, pct: 0 });
       }
-    })
-    const denom = filteredKelas.length || 1
-    const list = Array.from(map.values()).sort((a, b) => b.count - a.count)
+    });
+    const denom = filteredKelas.length || 1;
+    const list = Array.from(map.values()).sort((a, b) => b.count - a.count);
     list.forEach((item) => {
-      item.pct = Math.round((item.count / denom) * 100)
-    })
-    return list
-  }, [filteredKelas])
+      item.pct = Math.round((item.count / denom) * 100);
+    });
+    return list;
+  }, [filteredKelas]);
 
-  const maxJurusanCount = Math.max(1, ...jurusanDistribution.map((j) => j.count))
+  const maxJurusanCount = Math.max(
+    1,
+    ...jurusanDistribution.map((j) => j.count),
+  );
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Ringkasan Sistem</h1>
-          <p className="text-sm text-gray-600">Selamat datang kembali di panel kontrol utama sekolah.</p>
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+            Ringkasan Sistem
+          </h1>
+          <p className="text-sm text-gray-600">
+            Selamat datang kembali di panel kontrol utama sekolah.
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-500 flex items-center gap-1.5">
@@ -202,33 +224,118 @@ export default function AdminDashboardPage() {
             disabled={loading}
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:border-purple-300 hover:text-purple-600 transition-colors disabled:opacity-50"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Segarkan
           </button>
         </div>
       </div>
 
       {/* Grid Statistik */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={Users} label="Guru Aktif" value={totalGuru} variant="blue" delay={0} />
-        <StatCard icon={GraduationCap} label="Siswa Aktif" value={totalSiswa} variant="emerald" delay={100} />
-        <StatCard icon={BookOpen} label="Mapel Aktif" value={totalMapel} variant="purple" delay={200} />
-        <StatCard icon={Calendar} label="Kelas Aktif" value={loading ? '--' : totalKelasAktif} variant="amber" delay={300} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+        <StatCard
+          icon={Users}
+          label="Guru Aktif"
+          value={totalGuru}
+          variant="blue"
+          delay={0}
+        />
+        <StatCard
+          icon={GraduationCap}
+          label="Siswa Aktif"
+          value={totalSiswa}
+          variant="emerald"
+          delay={100}
+        />
+        <StatCard
+          icon={BookOpen}
+          label="Mapel Aktif"
+          value={totalMapel}
+          variant="purple"
+          delay={200}
+        />
+        <StatCard
+          icon={Calendar}
+          label="Kelas Aktif"
+          value={loading ? "--" : totalKelasAktif}
+          variant="amber"
+          delay={300}
+        />
+        <StatCard
+          icon={UserCheck}
+          label={`Hadir Hari Ini${presensiHariIni ? ` (${presensiHariIni.tanggal})` : ""}`}
+          value={
+            presensiHariIni
+              ? `${presensiHariIni.hadir}/${presensiHariIni.total || 0}`
+              : "--"
+          }
+          variant="emerald"
+          delay={400}
+        />
       </div>
+
+      {/* Presensi Hari Ini */}
+      {presensiHariIni && presensiHariIni.total > 0 && (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+          <h2 className="text-base font-bold text-gray-900 mb-1">
+            Presensi Hari Ini
+          </h2>
+          <p className="text-sm text-gray-500 mb-4">
+            {presensiHariIni.tanggal} · {presensiHariIni.total} entri
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {(
+              [
+                { k: "hadir", label: "Hadir", cls: "bg-emerald-500" },
+                { k: "izin", label: "Izin", cls: "bg-blue-500" },
+                { k: "sakit", label: "Sakit", cls: "bg-amber-500" },
+                { k: "alpha", label: "Alpha", cls: "bg-rose-500" },
+              ] as const
+            ).map((it) => {
+              const v = Number(
+                (presensiHariIni as unknown as Record<string, unknown>)[it.k] ??
+                  0,
+              );
+              const pct = presensiHariIni.total
+                ? Math.round((v / presensiHariIni.total) * 100)
+                : 0;
+              return (
+                <div key={it.k} className="bg-gray-50 rounded-xl p-3">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-bold text-gray-700">{it.label}</span>
+                    <span className="text-gray-500">
+                      {v} · {pct}%
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
+                    <div
+                      className={`h-full ${it.cls}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filter */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
         <div className="flex items-center gap-2 mb-4">
           <Filter className="h-4 w-4 text-gray-500" />
-          <h2 className="text-base font-bold text-gray-900">Filter Distribusi Kelas</h2>
+          <h2 className="text-base font-bold text-gray-900">
+            Filter Distribusi Kelas
+          </h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="block">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tahun Ajaran</span>
+            <span className="text-sm font-semibold text-gray-700">
+              Tahun Ajaran
+            </span>
             <select
               value={tahunAjaranFilter}
               onChange={(e) => setTahunAjaranFilter(e.target.value)}
-              className="mt-1.5 w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              className="mt-1.5 w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
               <option value="all">Semua Tahun Ajaran</option>
               {tahunAjaranOptions.map((tahun) => (
@@ -240,11 +347,13 @@ export default function AdminDashboardPage() {
           </label>
 
           <label className="block">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Jurusan</span>
+            <span className="text-sm font-semibold text-gray-700">
+              Jurusan
+            </span>
             <select
               value={jurusanFilter}
               onChange={(e) => setJurusanFilter(e.target.value)}
-              className="mt-1.5 w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              className="mt-1.5 w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
               <option value="all">Semua Jurusan</option>
               {jurusanOptions.map((j) => (
@@ -261,16 +370,21 @@ export default function AdminDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Per Tingkat */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-          <h2 className="text-base font-bold text-gray-900 mb-1">Kelas per Tingkatan</h2>
+          <h2 className="text-base font-bold text-gray-900 mb-1">
+            Kelas per Tingkatan
+          </h2>
           <p className="text-sm text-gray-500 mb-5">
-            Distribusi {filteredKelas.length} kelas {tahunAjaranFilter !== 'all' ? `tahun ${tahunAjaranFilter}` : ''}{' '}
+            Distribusi {filteredKelas.length} kelas{" "}
+            {tahunAjaranFilter !== "all" ? `tahun ${tahunAjaranFilter}` : ""}{" "}
             berdasarkan tingkat.
           </p>
           <div className="space-y-4">
             {tingkatDistribution.map((item) => (
               <div key={item.tingkat}>
                 <div className="flex items-center justify-between text-sm mb-1.5">
-                  <span className="font-semibold text-gray-800">Kelas {item.tingkat}</span>
+                  <span className="font-semibold text-gray-800">
+                    Kelas {item.tingkat}
+                  </span>
                   <span className="text-gray-500">
                     {item.count} kelas · {item.pct}%
                   </span>
@@ -284,20 +398,28 @@ export default function AdminDashboardPage() {
               </div>
             ))}
             {filteredKelas.length === 0 && (
-              <p className="text-sm text-gray-400 py-6 text-center">Belum ada kelas pada filter ini.</p>
+              <p className="text-sm text-gray-400 py-6 text-center">
+                Belum ada kelas pada filter ini.
+              </p>
             )}
           </div>
         </div>
 
         {/* Per Jurusan */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-          <h2 className="text-base font-bold text-gray-900 mb-1">Kelas per Jurusan</h2>
-          <p className="text-sm text-gray-500 mb-5">Distribusi kelas berdasarkan jurusan (program keahlian).</p>
+          <h2 className="text-base font-bold text-gray-900 mb-1">
+            Kelas per Jurusan
+          </h2>
+          <p className="text-sm text-gray-500 mb-5">
+            Distribusi kelas berdasarkan jurusan (program keahlian).
+          </p>
           <div className="space-y-4">
             {jurusanDistribution.map((item) => (
               <div key={item.id}>
                 <div className="flex items-center justify-between text-sm mb-1.5">
-                  <span className="font-semibold text-gray-800">{item.nama}</span>
+                  <span className="font-semibold text-gray-800">
+                    {item.nama}
+                  </span>
                   <span className="text-gray-500">
                     {item.count} kelas · {item.pct}%
                   </span>
@@ -305,13 +427,17 @@ export default function AdminDashboardPage() {
                 <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500"
-                    style={{ width: `${(item.count / maxJurusanCount) * 100}%` }}
+                    style={{
+                      width: `${(item.count / maxJurusanCount) * 100}%`,
+                    }}
                   />
                 </div>
               </div>
             ))}
             {jurusanDistribution.length === 0 && (
-              <p className="text-sm text-gray-400 py-6 text-center">Belum ada kelas pada filter ini.</p>
+              <p className="text-sm text-gray-400 py-6 text-center">
+                Belum ada kelas pada filter ini.
+              </p>
             )}
           </div>
         </div>
@@ -319,27 +445,41 @@ export default function AdminDashboardPage() {
 
       {/* Aktivitas Terbaru */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-        <h2 className="text-base font-bold text-gray-900 mb-1">Aktivitas Terbaru</h2>
-        <p className="text-sm text-gray-500 mb-4">Perubahan data terakhir di sistem.</p>
+        <h2 className="text-base font-bold text-gray-900 mb-1">
+          Aktivitas Terbaru
+        </h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Perubahan data terakhir di sistem.
+        </p>
         {activity.length === 0 ? (
-          <p className="text-sm text-gray-400 py-6 text-center">Belum ada aktivitas.</p>
+          <p className="text-sm text-gray-400 py-6 text-center">
+            Belum ada aktivitas.
+          </p>
         ) : (
           <ul className="divide-y divide-gray-100">
             {activity.map((item) => {
-              const style = activityIcon[item.type]
-              const Icon = style.icon
+              const style = activityIcon[item.type];
+              const Icon = style.icon;
               return (
                 <li key={item.id} className="flex items-start gap-3 py-3">
-                  <div className={`h-9 w-9 flex-shrink-0 rounded-xl ${style.bg} ${style.text} flex items-center justify-center`}>
+                  <div
+                    className={`h-9 w-9 flex-shrink-0 rounded-xl ${style.bg} ${style.text} flex items-center justify-center`}
+                  >
                     <Icon className="h-4.5 w-4.5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{item.title}</p>
-                    <p className="text-xs text-gray-500 truncate">{item.subtitle}</p>
+                    <p className="text-sm font-semibold text-gray-900 truncate">
+                      {item.title}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {item.subtitle}
+                    </p>
                   </div>
-                  <span className="text-xs text-gray-400 flex-shrink-0">{formatRelative(item.time)}</span>
+                  <span className="text-xs text-gray-400 flex-shrink-0">
+                    {formatRelative(item.time)}
+                  </span>
                 </li>
-              )
+              );
             })}
           </ul>
         )}
@@ -347,7 +487,9 @@ export default function AdminDashboardPage() {
 
       {/* Aksi Cepat */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-        <h2 className="text-base font-bold text-gray-900 mb-1">Manajemen Cepat</h2>
+        <h2 className="text-base font-bold text-gray-900 mb-1">
+          Manajemen Cepat
+        </h2>
         <p className="text-sm text-gray-500 mb-4">
           Akses langsung ke halaman pengelolaan data sekolah.
         </p>
@@ -362,8 +504,14 @@ export default function AdminDashboardPage() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-gray-900">Pengguna</p>
               <p className="text-xs text-gray-500">
-                <span className="font-bold text-blue-600">{loading ? '--' : totalGuru}</span> guru ·{' '}
-                <span className="font-bold text-blue-600">{loading ? '--' : totalSiswa}</span> siswa
+                <span className="font-bold text-blue-600">
+                  {loading ? "--" : totalGuru}
+                </span>{" "}
+                guru ·{" "}
+                <span className="font-bold text-blue-600">
+                  {loading ? "--" : totalSiswa}
+                </span>{" "}
+                siswa
               </p>
             </div>
             <ArrowRight className="h-4 w-4 text-gray-300 transition-all group-hover:translate-x-0.5 group-hover:text-blue-500" />
@@ -379,7 +527,10 @@ export default function AdminDashboardPage() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-gray-900">Mata Pelajaran</p>
               <p className="text-xs text-gray-500">
-                <span className="font-bold text-emerald-600">{loading ? '--' : totalMapel}</span> mapel aktif
+                <span className="font-bold text-emerald-600">
+                  {loading ? "--" : totalMapel}
+                </span>{" "}
+                mapel aktif
               </p>
             </div>
             <ArrowRight className="h-4 w-4 text-gray-300 transition-all group-hover:translate-x-0.5 group-hover:text-emerald-500" />
@@ -395,7 +546,10 @@ export default function AdminDashboardPage() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-gray-900">Kelas</p>
               <p className="text-xs text-gray-500">
-                <span className="font-bold text-purple-600">{loading ? '--' : totalKelasAktif}</span> kelas aktif
+                <span className="font-bold text-purple-600">
+                  {loading ? "--" : totalKelasAktif}
+                </span>{" "}
+                kelas aktif
               </p>
             </div>
             <ArrowRight className="h-4 w-4 text-gray-300 transition-all group-hover:translate-x-0.5 group-hover:text-purple-500" />
@@ -411,7 +565,10 @@ export default function AdminDashboardPage() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-gray-900">Jurusan</p>
               <p className="text-xs text-gray-500">
-                <span className="font-bold text-amber-600">{loading ? '--' : jurusanOptions.length}</span> jurusan aktif
+                <span className="font-bold text-amber-600">
+                  {loading ? "--" : jurusanOptions.length}
+                </span>{" "}
+                jurusan aktif
               </p>
             </div>
             <ArrowRight className="h-4 w-4 text-gray-300 transition-all group-hover:translate-x-0.5 group-hover:text-amber-500" />
@@ -419,5 +576,5 @@ export default function AdminDashboardPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

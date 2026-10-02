@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Pencil, Trash2, GraduationCap, Search, CheckCircle2, Filter, Building2, ArrowRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, GraduationCap, Search, CheckCircle2, Filter, Building2, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { FeedbackMessage } from '@/components/ui/FeedbackMessage'
-import { useFeedback } from '@/hooks/useFeedback'
+import { useAdminMutate } from '@/hooks/useAdminMutate'
 
 interface JurusanData {
   id: string
@@ -26,16 +27,15 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
   const [data, setData] = useState<JurusanData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearch = useDebouncedValue(searchQuery, 300)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<JurusanData | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  // Feedback (auto-dismiss)
-  const { feedback, showFeedback, setFeedback } = useFeedback()
 
   // Refresh trigger: naikkan angka untuk memuat ulang data (dipakai setelah mutasi)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -43,6 +43,9 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
     setRefreshKey((k) => k + 1)
     if (onDataChanged) onDataChanged()
   }, [onDataChanged])
+
+  // Feedback + mutate DRY (ganti 3 handler duplikat)
+  const { feedback, setFeedback, submitting, mutate } = useAdminMutate('/api/admin/jurusan', refreshData)
 
   // Load data on mount, saat filter berubah, atau saat refresh diminta
   useEffect(() => {
@@ -72,98 +75,44 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
     return () => { cancelled = true }
   }, [statusFilter, refreshKey, setFeedback])
 
-  // Filter data
-  const filteredData = data
-    .filter((item) => {
-      const matchesSearch =
-        item.kode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.nama.toLowerCase().includes(searchQuery.toLowerCase())
-      let matchesStatus = true
-      if (statusFilter === 'active') matchesStatus = item.status === true
-      if (statusFilter === 'inactive') matchesStatus = item.status === false
-      return matchesSearch && matchesStatus
-    })
+  // Filter data: server sudah filter status, client hanya search teks
+  const filteredData = data.filter((item) => {
+    if (debouncedSearch === '') return true
+    const q = debouncedSearch.toLowerCase()
+    return item.kode.toLowerCase().includes(q) || item.nama.toLowerCase().includes(q)
+  })
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, statusFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize))
+  const pagedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredData.slice(start, start + pageSize)
+  }, [filteredData, currentPage])
 
-  // Create handler
+  // Create handler — DRY via mutate
   const handleCreate = useCallback(async (formData: { kode: string; nama: string }) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/jurusan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menambahkan jurusan')
-      }
-
-      showFeedback('success', 'Jurusan berhasil ditambahkan!')
+      await mutate('POST', formData)
       setIsCreateModalOpen(false)
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate])
 
   // Update handler
   const handleUpdate = useCallback(async (id: string, formData: { kode?: string; nama?: string; status?: boolean }) => {
-    setSubmitting(true)
-    setFeedback(null)
-
     try {
-      const res = await fetch('/api/admin/jurusan', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...formData }),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal memperbarui jurusan')
-      }
-
-      showFeedback('success', 'Jurusan berhasil diperbarui!')
+      await mutate('PUT', { id, ...formData })
       setIsEditModalOpen(false)
       setEditingItem(null)
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [refreshData, showFeedback, setFeedback])
+    } catch {}
+  }, [mutate])
 
   // Delete handler
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm('Apakah Anda yakin ingin menghapus jurusan ini? Tindakan ini tidak dapat dibatalkan.')) return
-
-    setFeedback(null)
-
     try {
-      const res = await fetch(`/api/admin/jurusan?id=${id}`, {
-        method: 'DELETE',
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Gagal menghapus jurusan')
-      }
-
-      showFeedback('success', 'Jurusan berhasil dihapus!')
-      refreshData()
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Terjadi kesalahan')
-    }
-  }, [refreshData, showFeedback, setFeedback])
+      await mutate('DELETE', undefined, `?id=${id}`)
+    } catch {}
+  }, [mutate])
 
   return (
     <div className="space-y-6">
@@ -191,7 +140,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total</span>
+            <span className="text-[13px] font-semibold text-gray-500">Total</span>
             <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
               <GraduationCap className="h-4 w-4" />
             </div>
@@ -202,7 +151,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
 
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Aktif</span>
+            <span className="text-[13px] font-semibold text-gray-500">Aktif</span>
             <div className="h-8 w-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
               <CheckCircle2 className="h-4 w-4" />
             </div>
@@ -215,7 +164,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
 
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Nonaktif</span>
+            <span className="text-[13px] font-semibold text-gray-500">Nonaktif</span>
             <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
               <Filter className="h-4 w-4" />
             </div>
@@ -240,7 +189,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
               placeholder="Cari kode atau nama jurusan..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
           </div>
 
@@ -300,7 +249,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredData.map((item) => (
+                {pagedData.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group">
                     <td className="py-4 px-6 font-bold text-amber-600 text-sm">{item.kode}</td>
                     <td className="py-4 px-6 font-semibold text-gray-900">{item.nama}</td>
@@ -357,6 +306,15 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
           </div>
         </div>
       )}
+      {filteredData.length > 20 && (
+        <div className="flex items-center justify-between bg-white rounded-xl p-3 border border-gray-100">
+          <span className="text-xs text-gray-500">Halaman {currentPage} / {totalPages} · {filteredData.length} hasil</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}><ChevronLeft className="h-4 w-4" /> Prev</Button>
+            <Button variant="secondary" size="sm" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>Next <ChevronRight className="h-4 w-4" /></Button>
+          </div>
+        </div>
+      )}
 
       {/* Create Modal */}
       <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Tambah Jurusan" size="md">
@@ -369,7 +327,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
           })
         }} className="space-y-4 pt-2">
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Kode <span className="text-red-500">*</span>
             </label>
             <Input
@@ -383,7 +341,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-sm font-semibold text-gray-700">
               Nama Jurusan <span className="text-red-500">*</span>
             </label>
             <Input
@@ -430,7 +388,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Kode
               </label>
               <Input
@@ -443,7 +401,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Nama Jurusan
               </label>
               <Input
@@ -455,7 +413,7 @@ export function JurusanManager({ onDataChanged }: JurusanManagerProps) {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700">
                 Status
               </label>
               <div className="flex items-center space-x-6">

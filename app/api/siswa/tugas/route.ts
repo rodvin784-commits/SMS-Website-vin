@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { siswaAuth } from '@/lib/siswa-auth'
-import { getTugasKelas, getPengumpulanSiswa } from '@/lib/siswa-query'
+import { getPengumpulanBatch, getTugasKelas } from '@/lib/siswa-query'
 
 // GET /api/siswa/tugas
 // Daftar tugas untuk kelas siswa + status pengumpulan per tugas oleh siswa tsb.
@@ -28,29 +28,35 @@ export async function GET() {
       } | null
     }
 
-    const rows: TugasRow[] = []
-    for (const t of tugas) {
-      const peng = await getPengumpulanSiswa(auth.siswaId, t.id)
-      rows.push({
+    // Batch 1 query, bukan N sequential
+    const pengMap = await getPengumpulanBatch(
+      auth.siswaId,
+      tugas.map((t) => t.id)
+    )
+    const rows: TugasRow[] = tugas.map((t) => {
+      const peng = pengMap.get(t.id) as unknown as TugasRow['pengumpulan'] | undefined
+      return {
         ...t,
         pengumpulan: peng
           ? {
-              id: peng.id,
-              status: peng.status,
-              nama_file: peng.nama_file,
+              id: (peng as { id: string }).id,
+              status: (peng as { status: string | null }).status,
+              nama_file: (peng as { nama_file: string | null }).nama_file,
               foto_urls: (peng as { foto_urls?: string[] | null }).foto_urls ?? null,
-              jawaban_teks: peng.jawaban_teks,
-              catatan: peng.catatan,
-              submitted_at: peng.submitted_at,
+              jawaban_teks: (peng as { jawaban_teks: string | null }).jawaban_teks,
+              catatan: (peng as { catatan: string | null }).catatan,
+              submitted_at: (peng as { submitted_at: string | null }).submitted_at,
               nilai: (peng as { nilai?: number | null }).nilai ?? null,
               feedback: (peng as { feedback?: string | null }).feedback ?? null,
               dinilai_at: (peng as { dinilai_at?: string | null }).dinilai_at ?? null,
             }
           : null,
-      })
-    }
+      }
+    })
 
-    return NextResponse.json({ tugas: rows })
+    const res = NextResponse.json({ tugas: rows })
+    res.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=30')
+    return res
   } catch (err) {
     console.error('Error GET siswa tugas:', err)
     return NextResponse.json(

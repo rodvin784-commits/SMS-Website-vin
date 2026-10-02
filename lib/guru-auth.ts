@@ -1,4 +1,5 @@
 import { getProfileRole, getSessionUser, getSupabaseAdmin } from '@/lib/supabase-server'
+import { pickOne } from '@/lib/utils'
 
 // Sumber kebenaran sesi guru:
 // auth.uid() -> profiles (role=guru, status aktif) -> guru (id guru) -> guru_kelas (penugasan)
@@ -93,9 +94,6 @@ export async function getGuruKelas(guruId: string): Promise<GuruKelasRow[]> {
     kelas: { nama_kelas: string; tingkat: number } | { nama_kelas: string; tingkat: number }[] | null
   }
 
-  const pickOne = <T,>(v: T[] | T | null | undefined): T | null =>
-    Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
-
   return ((data ?? []) as unknown as Embed[]).map((r) => {
     const mapel = pickOne(r.mata_pelajaran)
     const kelas = pickOne(r.kelas)
@@ -133,6 +131,27 @@ export async function isAssigned(
     return false
   }
   return (data?.length ?? 0) > 0
+}
+
+// Batch check: guru ditugaskan untuk mapel X di SEMUA kelasIds? (1 query, bukan N)
+export async function areAllAssigned(
+  guruId: string,
+  mapelId: string,
+  kelasIds: string[]
+): Promise<boolean> {
+  if (kelasIds.length === 0) return true
+  const { data, error } = await getSupabaseAdmin()
+    .from('guru_kelas')
+    .select('kelas_id')
+    .eq('guru_id', guruId)
+    .eq('mata_pelajaran_id', mapelId)
+    .in('kelas_id', kelasIds)
+  if (error) {
+    console.error('Gagal cek penugasan guru (batch):', error.message)
+    return false
+  }
+  const found = new Set((data ?? []).map((r: { kelas_id: string }) => r.kelas_id))
+  return kelasIds.every((id) => found.has(id))
 }
 
 // Roster siswa aktif satu kelas (dari tabel siswa, bukan profiles).

@@ -14,29 +14,29 @@ vi.mock('next/server', () => ({
 import { serverError, denyResponse } from '@/lib/api-admin'
 
 describe('serverError', () => {
-  it('mengembalikan status 500 dengan pesan Error instance', async () => {
+  it('mengembalikan status 500 dengan pesan aman (tidak bocorkan detail)', async () => {
     const err = new Error('Koneksi database gagal')
     const response = serverError(err, 'test-context')
 
     expect(response.status).toBe(500)
     const body = await response.json()
-    expect(body.error).toBe('Koneksi database gagal')
+    expect(body.error).toBe('Terjadi kesalahan server. Silakan coba lagi.')
   })
 
-  it('mengembalikan pesan default untuk error non-Error', async () => {
+  it('mengembalikan pesan aman untuk error non-Error', async () => {
     const response = serverError('string-error', 'test-context')
 
     expect(response.status).toBe(500)
     const body = await response.json()
-    expect(body.error).toBe('Terjadi kesalahan server')
+    expect(body.error).toBe('Terjadi kesalahan server. Silakan coba lagi.')
   })
 
-  it('mengembalikan pesan default untuk null', async () => {
+  it('mengembalikan pesan aman untuk null', async () => {
     const response = serverError(null, 'test-context')
 
     expect(response.status).toBe(500)
     const body = await response.json()
-    expect(body.error).toBe('Terjadi kesalahan server')
+    expect(body.error).toBe('Terjadi kesalahan server. Silakan coba lagi.')
   })
 })
 

@@ -30,7 +30,7 @@ export async function GET() {
       getNilaiSiswa(auth.siswaId),
       getSupabaseAdmin()
         .from('notifikasi')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('profile_id', auth.userId)
         .eq('is_read', false),
     ])
@@ -38,7 +38,7 @@ export async function GET() {
     const today = getDayName()
     const jadwalHariIni = jadwal.filter((j) => j.hari === today)
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       kelas: {
         nama_kelas: kelas.nama_kelas,
         tingkat: kelas.tingkat,
@@ -56,6 +56,9 @@ export async function GET() {
       tugas_terbaru: tugas.slice(0, 3),
       pengumuman_terbaru: pengumuman.slice(0, 3),
     })
+    // Percepat render: cache privat 15s agar dashboard tidak hit DB tiap swipe tab (UX tetap fresh)
+    res.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=30')
+    return res
   } catch (err) {
     console.error('Error GET siswa dashboard:', err)
     return NextResponse.json(

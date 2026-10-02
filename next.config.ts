@@ -4,7 +4,7 @@ const securityHeaders = [
   {
     key: 'Content-Security-Policy',
     value:
-      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src https://www.youtube.com;",
+      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.vercel.app https://sms-website-one.vercel.app capacitor://localhost capacitor: http://localhost:* http://192.168.*:*; frame-src https://www.youtube.com;",
   },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -17,12 +17,17 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: '/admin/login',
+        headers: [...securityHeaders, { key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
+      {
         source: '/((?!_next/static|_next/image|favicon.ico).*)',
         headers: securityHeaders,
       },
     ];
   },
   images: {
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       {
         protocol: 'https',
